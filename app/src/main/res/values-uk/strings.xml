@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_admin_desc">Сервіс ізоляції додатку</string>
+    <string name="setup_wizard_welcome">Ласкаво просимо до Capsule</string>
+    <string name="setup_wizard_permissions">Декілька слів про дозволи</string>
+    <string name="setup_wizard_welcome_text">Capsule - це програма, яка допоможе вам запускати інші програми в ізольованому профілі. Вона використовує функцію <b>Робочий профіль</b> в Android.
+\n
+\nНатисніть \"Далі\", і ми надамо вам більше інформації про Capsule і проведемо вас через процес налаштування.
+\n
+\nМи рекомендуємо вам уважно прочитати всі наступні сторінки.</string>
+    <string name="setup_wizard_please_wait_text">Ми намагаємося ініціалізувати Work Profile та налаштувати Capsule на вашому пристрої.</string>
+    <string name="fragment_profile_work">Capsule</string>
+</resources>

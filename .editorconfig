@@ -1,0 +1,31 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 140
+
+[*.{kt,kts}]
+# Rules disabled for Jetpack Compose projects, per ktlint docs and community consensus.
+# @Composable functions are PascalCase per Compose API guidelines (ktlint issue #780).
+ktlint_standard_function-naming = disabled
+# Compose idiomatically uses wildcard imports for material3/foundation layout packages.
+ktlint_standard_no-wildcard-imports = disabled
+# KDoc blocks separated by blank lines get flagged; allow structured multi-paragraph KDoc.
+ktlint_standard_no-consecutive-comments = disabled
+# Compose signatures with trailing lambdas; strict wrapping fights Compose parameter style.
+ktlint_standard_function-signature = disabled
+ktlint_standard_condition-wrapping = disabled
+ktlint_standard_expression-operand-wrapping = disabled
+ktlint_standard_binary-expression-wrapping = disabled
+ktlint_standard_blank-line-between-when-conditions = disabled
+
+[**/ui/icons/**.kt]
+# Generated Material Symbols ImageVectors use their own naming scheme.
+ktlint_standard_backing-property-naming = disabled
+ktlint_standard_property-naming = disabled
+ktlint_standard_filename = disabled

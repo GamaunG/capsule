@@ -1,0 +1,17 @@
+*.iml
+.gradle/
+.kotlin/
+build/
+/local.properties
+.idea/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+
+# Keep the debug keystore and its configuration public on purpose:
+# debug builds are for development only and must never be used for release signing.
+!app/debug.keystore
+
+# Release signing lives outside the tree (see docs/RELEASING.md).
+release/
