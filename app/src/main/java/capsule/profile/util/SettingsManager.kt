@@ -4,14 +4,23 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Bundle
 import capsule.profile.services.PaymentStubService
 import capsule.profile.ui.DummyActivity
 
 /**
  * Applies persisted settings to the system and mirrors them to the other
  * profile instance via the SYNCHRONIZE_PREFERENCE cross-profile intent.
+ * A full snapshot of the synced keys also travels with every START_SERVICE
+ * bind so the work profile converges even when a single change was missed.
  */
 object SettingsManager {
+    /** Cross-profile file picking directions. */
+    const val PICKER_DISABLED = 0
+    const val PICKER_WORK_TO_MAIN = 1
+    const val PICKER_MAIN_TO_WORK = 2
+    const val PICKER_BOTH = 3
+
     private lateinit var appContext: Context
     private val storage: LocalStorageManager get() = LocalStorageManager
 
@@ -37,14 +46,93 @@ object SettingsManager {
         )
     }
 
+    private fun syncStringListToProfile(name: String, value: List<String>) {
+        syncToProfile(
+            Intent(DummyActivity.SYNCHRONIZE_PREFERENCE).apply {
+                putExtra("name", name)
+                putExtra("list", value.toTypedArray())
+            },
+        )
+    }
+
     private fun syncToProfile(intent: Intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             Utility.transferIntentToProfile(appContext, intent)
             appContext.startActivity(intent)
         } catch (e: IllegalStateException) {
-            // The other side is not available; the setting syncs on next contact.
+            // The other side is not available; the snapshot sent with the next
+            // START_SERVICE bind repairs any divergence.
+            CapsuleLog.w("Preference ${intent.getStringExtra("name")} could not be synced to the other profile", e)
         }
+    }
+
+    /**
+     * Snapshot of every preference that must match on both sides. Sent along
+     * with each work-profile service bind.
+     */
+    fun buildSyncBundle(): Bundle =
+        Bundle().apply {
+            putBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER, getCrossProfileFileChooserEnabled())
+            putInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, getCrossProfilePickerMode())
+            putBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING, getBlockContactsSearchingEnabled())
+            putBoolean(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE, getAutoFreezeServiceEnabled())
+            putInt(LocalStorageManager.PREF_AUTO_FREEZE_DELAY, getAutoFreezeDelay())
+            putBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND, getSkipForegroundEnabled())
+            putStringArray(
+                LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
+                storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE).toTypedArray(),
+            )
+        }
+
+    /** Applies a snapshot produced by [buildSyncBundle] on the other side. */
+    fun applySyncBundle(bundle: Bundle) {
+        val prefs = bundle.keySet().filter { it != null }
+        var changed = false
+        for (name in prefs) {
+            val value: Any? =
+                when (name) {
+                    LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE,
+                    LocalStorageManager.PREF_AUTO_FREEZE_DELAY,
+                    -> {
+                        bundle.getInt(name)
+                    }
+
+                    LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE -> {
+                        bundle.getStringArray(name)?.toList()
+                    }
+
+                    else -> {
+                        bundle.getBoolean(name)
+                    }
+                }
+            when (value) {
+                is Boolean -> {
+                    if (storage.getBoolean(name) != value) {
+                        storage.setBoolean(name, value)
+                        changed = true
+                    }
+                }
+
+                is Int -> {
+                    if (storage.getInt(name) != value) {
+                        storage.setInt(name, value)
+                        changed = true
+                    }
+                }
+
+                is List<*> -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val list = value as List<String>
+                    if (storage.getStringList(name) != list) {
+                        storage.setStringList(name, list)
+                        changed = true
+                    }
+                }
+            }
+        }
+        if (changed) CapsuleLog.i("Applied ${prefs.size} synced preferences from the other profile")
+        applyAll()
     }
 
     fun applyAll() {
@@ -82,6 +170,22 @@ object SettingsManager {
     fun getCrossProfilePickerEnabled(): Boolean =
         storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_PICKER)
 
+    fun setCrossProfilePickerMode(mode: Int) {
+        storage.setInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, mode)
+        syncIntToProfile(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, mode)
+    }
+
+    fun getCrossProfilePickerMode(): Int {
+        val mode = storage.getInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE)
+        if (mode != Int.MIN_VALUE) return mode
+        // Migrate the former boolean toggle: enabled meant both directions.
+        return if (storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_PICKER)) {
+            PICKER_BOTH
+        } else {
+            PICKER_DISABLED
+        }
+    }
+
     fun setBlockContactsSearchingEnabled(enabled: Boolean) {
         storage.setBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING, enabled)
         syncBoolToProfile(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING, enabled)
@@ -92,6 +196,8 @@ object SettingsManager {
 
     fun setAutoFreezeServiceEnabled(enabled: Boolean) {
         storage.setBoolean(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE, enabled)
+        // The work profile keeps the freeze service armed based on this flag.
+        syncBoolToProfile(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE, enabled)
     }
 
     fun getAutoFreezeServiceEnabled(): Boolean =
@@ -114,6 +220,17 @@ object SettingsManager {
 
     fun getSkipForegroundEnabled(): Boolean =
         storage.getBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND)
+
+    /** The auto-freeze list is edited in the main profile but consumed inside the work profile. */
+    fun syncAutoFreezeList() {
+        syncStringListToProfile(
+            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
+            storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE),
+        )
+    }
+
+    fun getAutoFreezeList(): List<String> =
+        storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
 
     fun getPaymentStubEnabled(): Boolean = storage.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB)
 

@@ -16,7 +16,10 @@ import capsule.profile.services.ICapsuleService
 import capsule.profile.services.IGetAppsCallback
 import capsule.profile.services.ILoadIconCallback
 import capsule.profile.util.ApplicationInfoWrapper
+import capsule.profile.util.CapsuleLog
+import capsule.profile.util.Fuzzy
 import capsule.profile.util.LocalStorageManager
+import capsule.profile.util.SettingsManager
 import capsule.profile.util.Utility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +40,7 @@ class AppListState(
     private val onMessage: (Int, String?) -> Unit,
     private val onOtherService: () -> ICapsuleService?,
     private val showAllProvider: () -> Boolean,
+    private val refreshPeer: () -> Unit = {},
 ) {
     var apps by mutableStateOf<List<ApplicationInfoWrapper>>(emptyList())
         private set
@@ -52,17 +56,21 @@ class AppListState(
     val crossProfileWidgetProviders = mutableStateSetOf<String>()
     val crossProfilePackages = mutableStateSetOf<String>()
 
+    // Mirrored in Compose state so toggles reflect immediately in open sheets.
+    val autoFreezePackages = mutableStateSetOf<String>()
+
     val displayedApps: List<ApplicationInfoWrapper>
         get() {
-            val query = searchQuery.trim().lowercase()
-            return if (query.isEmpty()) {
-                apps
-            } else {
-                apps.filter {
-                    it.packageName.lowercase().contains(query) ||
-                        it.labelOrDefault.lowercase().contains(query)
-                }
-            }
+            val query = searchQuery.trim()
+            if (query.isEmpty()) return apps
+            // Keep the base order for equal scores: the list is already
+            // sorted with frozen apps last, then alphabetically.
+            return apps
+                .mapNotNull { app ->
+                    val score = Fuzzy.score(app.labelOrDefault, app.packageName, query)
+                    if (score > 0) app to score else null
+                }.sortedByDescending { it.second }
+                .map { it.first }
         }
 
     private var refreshingJob: Job? = null
@@ -84,11 +92,10 @@ class AppListState(
         }
 
     fun refresh() {
-        if (refreshing) return
-        if (selectionMode) {
-            refreshing = false
-            return
-        }
+        if (selectionMode) return
+        // Replace an in-flight refresh instead of dropping the new one, so a
+        // quick succession of actions never leaves stale data behind.
+        refreshingJob?.cancel()
         refreshing = true
         refreshingJob =
             scope.launch {
@@ -106,6 +113,7 @@ class AppListState(
                     }
                     withContext(Dispatchers.Main) {
                         apps = list
+                        if (isRemote) reloadAutoFreezeList()
                         loading = false
                         refreshing = false
                     }
@@ -115,6 +123,11 @@ class AppListState(
                     }
                 }
             }
+    }
+
+    private fun reloadAutoFreezeList() {
+        autoFreezePackages.clear()
+        autoFreezePackages.addAll(SettingsManager.getAutoFreezeList())
     }
 
     /** Binder reads; must be called off the main thread. */
@@ -179,24 +192,24 @@ class AppListState(
 
     fun selectedApps(): List<ApplicationInfoWrapper> = apps.filter { it.packageName in selected }
 
-    fun isAutoFreeze(app: ApplicationInfoWrapper): Boolean =
-        LocalStorageManager.stringListContains(
-            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-            app.packageName,
-        )
+    fun isAutoFreeze(app: ApplicationInfoWrapper): Boolean = app.packageName in autoFreezePackages
 
     fun toggleAutoFreeze(app: ApplicationInfoWrapper) {
-        if (isAutoFreeze(app)) {
+        if (app.packageName in autoFreezePackages) {
+            autoFreezePackages.remove(app.packageName)
             LocalStorageManager.removeFromStringList(
                 LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
                 app.packageName,
             )
         } else {
+            autoFreezePackages.add(app.packageName)
             LocalStorageManager.appendStringList(
                 LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
                 app.packageName,
             )
         }
+        // The freeze pass runs inside the work profile and reads the list there.
+        SettingsManager.syncAutoFreezeList()
     }
 
     fun freezeApp(app: ApplicationInfoWrapper) {
@@ -208,7 +221,7 @@ class AppListState(
                     refresh()
                 }
             } catch (e: RemoteException) {
-                // Nothing meaningful to report.
+                CapsuleLog.w("Failed to freeze ${app.packageName}", e)
             }
         }
     }
@@ -222,12 +235,42 @@ class AppListState(
                     refresh()
                 }
             } catch (e: RemoteException) {
-                // Nothing meaningful to report.
+                CapsuleLog.w("Failed to unfreeze ${app.packageName}", e)
             }
         }
     }
 
+    /** Whether the app declares any app widget providers in its own profile. */
+    suspend fun hasWidgets(app: ApplicationInfoWrapper): Boolean =
+        try {
+            withContext(Dispatchers.IO) { service.hasWidgetProviders(app.packageName) }
+        } catch (e: Exception) {
+            CapsuleLog.w("Failed to query widget providers of ${app.packageName}", e)
+            false
+        }
+
+    /** Whether the app publishes any manifest-declared managed restrictions. */
+    suspend fun hasEditableRestrictions(app: ApplicationInfoWrapper): Boolean =
+        try {
+            val response =
+                withContext(Dispatchers.IO) {
+                    service.getManagedApplicationRestrictions(app.packageName)
+                }
+            val raw: ArrayList<android.os.Bundle>? =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    response.getParcelableArrayList("schema", android.os.Bundle::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    response.getParcelableArrayList("schema")
+                }
+            !raw.isNullOrEmpty()
+        } catch (e: Exception) {
+            CapsuleLog.w("Failed to query managed restrictions of ${app.packageName}", e)
+            false
+        }
+
     fun installOrUninstall(app: ApplicationInfoWrapper, isInstall: Boolean) {
+        CapsuleLog.i("Requesting ${if (isInstall) "clone" else "uninstall"} of ${app.packageName}")
         val callback =
             object : IAppInstallCallback.Stub() {
                 override fun callback(result: Int) {
@@ -244,12 +287,16 @@ class AppListState(
                     service.uninstallApp(app, callback)
                 }
             } catch (e: RemoteException) {
-                // TODO: report to the user.
+                CapsuleLog.w("Failed to request ${if (isInstall) "clone" else "uninstall"} of ${app.packageName}", e)
+                scope.launch(Dispatchers.Main) {
+                    onMessage(R.string.app_operation_cancelled, null)
+                }
             }
         }
     }
 
     private fun installAppCallback(result: Int, app: ApplicationInfoWrapper, isInstall: Boolean) {
+        CapsuleLog.i("${if (isInstall) "Clone" else "Uninstall"} of ${app.packageName} finished with result $result")
         when (result) {
             Activity.RESULT_OK -> {
                 onMessage(
@@ -257,7 +304,16 @@ class AppListState(
                     app.labelOrDefault,
                 )
                 refresh()
+                // The other profile's list decides whether clone options are
+                // offered at all; reload it too.
+                refreshPeer()
             }
+
+            CapsuleService.RESULT_ALREADY_EXISTS -> {
+                onMessage(R.string.clone_fail_already_exists, app.labelOrDefault)
+                refreshPeer()
+            }
+
             CapsuleService.RESULT_CANNOT_INSTALL_SYSTEM_APP -> {
                 onMessage(
                     if (isInstall) {
@@ -268,6 +324,11 @@ class AppListState(
                     null,
                 )
             }
+
+            CapsuleService.RESULT_CANNOT_ENABLE_SYSTEM_APP -> {
+                onMessage(R.string.clone_fail_system_app_enable, app.labelOrDefault)
+            }
+
             Activity.RESULT_CANCELED -> {
                 onMessage(R.string.app_operation_cancelled, null)
             }

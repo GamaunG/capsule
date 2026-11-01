@@ -3,6 +3,18 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Short git commit hash shown in the About section; resolved at configuration
+// time so the configuration cache stays valid.
+val gitCommitHash: String =
+    providers
+        .exec {
+            commandLine("git", "rev-parse", "--short", "HEAD")
+            isIgnoreExitValue = true
+        }.standardOutput.asText
+        .map { it.trim().ifEmpty { "unknown" } }
+        .orElse("unknown")
+        .get()
+
 // Release signing properties, resolved once at configuration time so task
 // actions never touch Project at execution time (configuration-cache safe).
 // Values may come from the command line (-P) or any gradle.properties file.
@@ -24,6 +36,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+
+        buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
     }
 
     signingConfigs {
@@ -74,6 +88,7 @@ android {
     buildFeatures {
         compose = true
         aidl = true
+        buildConfig = true
     }
 
     packaging {

@@ -131,14 +131,30 @@ object Utility {
         )
 
         // Picker-based sharing is user mediated and independent from File Shuttle.
-        if (SettingsManager.getCrossProfilePickerEnabled()) {
+        // FLAG_MANAGED_CAN_ACCESS_PARENT lets intents sent from the main profile
+        // resolve in the work profile, FLAG_PARENT_CAN_ACCESS_MANAGED the other
+        // way around.
+        val pickerMode = SettingsManager.getCrossProfilePickerMode()
+        if (pickerMode != SettingsManager.PICKER_DISABLED) {
+            var pickerFlags = 0
+            if (pickerMode == SettingsManager.PICKER_WORK_TO_MAIN ||
+                pickerMode == SettingsManager.PICKER_BOTH
+            ) {
+                pickerFlags = pickerFlags or DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
+            }
+            if (pickerMode == SettingsManager.PICKER_MAIN_TO_WORK ||
+                pickerMode == SettingsManager.PICKER_BOTH
+            ) {
+                pickerFlags = pickerFlags or DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
+            }
+            CapsuleLog.i("Installing system picker filters for mode $pickerMode (flags $pickerFlags)")
+
             val photoPickerFilter = IntentFilter(MediaStore.ACTION_PICK_IMAGES)
             photoPickerFilter.addCategory(Intent.CATEGORY_DEFAULT)
             manager.addCrossProfileIntentFilter(
                 adminComponent,
                 photoPickerFilter,
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED or
-                    DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT,
+                pickerFlags,
             )
 
             val documentPickerFilter = IntentFilter()
@@ -150,8 +166,7 @@ object Utility {
             manager.addCrossProfileIntentFilter(
                 adminComponent,
                 documentPickerFilter,
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED or
-                    DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT,
+                pickerFlags,
             )
         }
 

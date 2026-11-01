@@ -18,11 +18,9 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,12 +29,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +50,7 @@ import capsule.profile.services.IStartActivityProxy
 import capsule.profile.services.KillerService
 import capsule.profile.ui.applist.AppListPage
 import capsule.profile.ui.applist.AppListState
+import capsule.profile.ui.components.AppSearchField
 import capsule.profile.ui.components.AppSnackbarHost
 import capsule.profile.ui.icons.ac_unit
 import capsule.profile.ui.icons.add
@@ -65,10 +64,15 @@ import capsule.profile.ui.icons.settings
 import capsule.profile.ui.icons.shield_person
 import capsule.profile.ui.icons.visibility
 import capsule.profile.ui.theme.CapsuleTheme
+import capsule.profile.util.CapsuleLog
 import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.SettingsManager
 import capsule.profile.util.UriForwardProxy
 import capsule.profile.util.Utility
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -96,6 +100,11 @@ class MainActivity : ComponentActivity() {
 
     private var serviceMain: ICapsuleService? = null
     private var serviceWork: ICapsuleService? = null
+
+    // List states, published to the Compose UI once the services are bound.
+    private val mainListState = mutableStateOf<AppListState?>(null)
+    private val workListState = mutableStateOf<AppListState?>(null)
+    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     var showAll = false
         private set
@@ -130,7 +139,17 @@ class MainActivity : ComponentActivity() {
             // been brought up (pre-Oreo notification flow).
             resumeSetup.launch(null)
         } else if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)) {
-            startSetup.launch(null)
+            if (Utility.isWorkProfileAvailable(this)) {
+                // Reinstalling the app must not trigger a new provisioning when
+                // our own work profile is still alive; just adopt it again.
+                CapsuleLog.i("Existing work profile found; skipping the setup wizard")
+                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, true)
+                storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
+                SettingsManager.applyAll()
+                bindServices()
+            } else {
+                startSetup.launch(null)
+            }
         } else {
             SettingsManager.applyAll()
             bindServices()
@@ -148,6 +167,7 @@ class MainActivity : ComponentActivity() {
     private fun bindServices() {
         // The main-profile service needs no foreground notification: this
         // activity holds the connection.
+        CapsuleLog.i("Binding the main profile service")
         (application as capsule.profile.CapsuleApplication).bindCapsuleService(
             object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -181,8 +201,10 @@ class MainActivity : ComponentActivity() {
 
     private fun tryStartWorkServiceCb(result: ActivityResult) {
         if (result.resultCode == RESULT_OK) {
+            CapsuleLog.i("Work profile probe succeeded; binding work service")
             bindWorkService()
         } else {
+            CapsuleLog.w("Work profile probe returned ${result.resultCode}; work mode disabled?")
             // The user was prompted to enable Work Mode; we cannot tell ok
             // from cancel, so ask them to start the app again.
             Toast.makeText(this, R.string.work_mode_disabled, Toast.LENGTH_LONG).show()
@@ -193,6 +215,8 @@ class MainActivity : ComponentActivity() {
     private fun bindWorkService() {
         val intent = Intent(DummyActivity.START_SERVICE)
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        // Full settings snapshot: heals any preference the work profile missed.
+        intent.putExtra("settings_sync", SettingsManager.buildSyncBundle())
         Utility.transferIntentToProfile(this, intent)
         bindWorkService.launch(intent)
     }
@@ -202,9 +226,12 @@ class MainActivity : ComponentActivity() {
             val extra = result.data!!.getBundleExtra("extra")
             val binder = extra!!.getBinder("service")
             serviceWork = ICapsuleService.Stub.asInterface(binder)
+            CapsuleLog.i("Work profile service bound")
             registerStartActivityProxies()
             startKiller()
             servicesReady.value = true
+        } else {
+            CapsuleLog.w("Failed to bind the work profile service (result=${result.resultCode})")
         }
     }
 
@@ -260,7 +287,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (serviceMain != null && serviceWork != null && !servicesAlive()) {
+        if (restarting) return
+
+        if (!servicesReady.value) {
+            // The bind chain was interrupted, e.g. a configuration change in
+            // the background blocked an activity launch. Pick it up from where
+            // it stopped now that we are foreground again.
+            if (serviceMain == null) {
+                bindServices()
+            } else {
+                tryStartWorkService()
+            }
+            return
+        }
+
+        if (!servicesAlive()) {
             // The services died (e.g. KillerService was destroyed). Restart
             // cleanly instead of reusing dead binders.
             doOnDestroy()
@@ -269,19 +310,27 @@ class MainActivity : ComponentActivity() {
             // activity; restart with a fresh launcher intent.
             startActivity(Intent(this, MainActivity::class.java))
             finish()
+            return
         }
+
+        // States change while we are away (shortcuts, batch freeze, installs):
+        // reload both lists on every resume.
+        mainListState.value?.refresh()
+        workListState.value?.refresh()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // DO NOT kill anything while restarting: the new activity instance may
-        // already have started its own services again.
-        if (!restarting) {
+        // DO NOT kill anything while restarting or recreating for a
+        // configuration change: the new instance may already have started its
+        // own services again.
+        if (!restarting && !isChangingConfigurations) {
             doOnDestroy()
         }
     }
 
     private fun doOnDestroy() {
+        refreshScope.cancel()
         stopService(Intent(this, KillerService::class.java))
         Utility.killCapsuleServices(serviceMain, serviceWork)
     }
@@ -301,6 +350,15 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(DummyActivity.PUBLIC_FREEZE_ALL)
         intent.component = ComponentName(this, DummyActivity::class.java)
         startActivity(intent)
+        // The freeze pass runs asynchronously in the work profile; refresh
+        // again once it has had time to finish.
+        mainListState.value?.refresh()
+        workListState.value?.refresh()
+        refreshScope.launch {
+            kotlinx.coroutines.delay(2000)
+            mainListState.value?.refresh()
+            workListState.value?.refresh()
+        }
     }
 
     fun createFreezeAllShortcut() {
@@ -323,6 +381,7 @@ class MainActivity : ComponentActivity() {
     private fun onApkSelected(uri: Uri?) {
         if (uri == null) return
         val work = serviceWork ?: return
+        CapsuleLog.i("Selected APK $uri for installation into the work profile")
         val proxy = UriForwardProxy(applicationContext, uri)
         try {
             work.installApk(
@@ -344,7 +403,7 @@ class MainActivity : ComponentActivity() {
                 },
             )
         } catch (e: android.os.RemoteException) {
-            // Nothing sensible to do here.
+            CapsuleLog.w("Failed to forward the selected APK to the work profile", e)
         }
     }
 
@@ -381,6 +440,11 @@ class MainActivity : ComponentActivity() {
         var menuOpen by remember { mutableStateOf(false) }
         var showAllConfirm by remember { mutableStateOf(false) }
         val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+        val searchFocus =
+            remember {
+                androidx.compose.ui.focus
+                    .FocusRequester()
+            }
 
         val mainState =
             remember {
@@ -394,7 +458,8 @@ class MainActivity : ComponentActivity() {
                     },
                     onOtherService = { serviceWork },
                     showAllProvider = { showAll },
-                )
+                    refreshPeer = { workListState.value?.refresh() },
+                ).also { mainListState.value = it }
             }
         val workState =
             remember {
@@ -408,8 +473,16 @@ class MainActivity : ComponentActivity() {
                     },
                     onOtherService = { serviceMain },
                     showAllProvider = { showAll },
-                )
+                    refreshPeer = { mainListState.value?.refresh() },
+                ).also { workListState.value = it }
             }
+
+        // Focus the field as soon as the search bar appears.
+        LaunchedEffect(searchActive) {
+            if (searchActive) {
+                runCatching { searchFocus.requestFocus() }
+            }
+        }
 
         Scaffold(
             topBar = {
@@ -450,20 +523,17 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                     if (searchActive) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = {
+                        AppSearchField(
+                            query = searchQuery,
+                            onQueryChange = {
                                 searchQuery = it
                                 mainState.searchQuery = it
                                 workState.searchQuery = it
                             },
-                            placeholder = { Text(stringResource(R.string.search_hint)) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            placeholder = stringResource(R.string.search_hint),
+                            focusRequester = searchFocus,
                             modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
                 }
@@ -494,8 +564,18 @@ class MainActivity : ComponentActivity() {
                         .padding(padding),
             ) { page ->
                 when (page) {
-                    0 -> AppListPage(mainState)
-                    else -> AppListPage(workState)
+                    0 -> {
+                        AppListPage(
+                            mainState,
+                            otherPackages = { workState.apps.map { it.packageName }.toSet() },
+                        )
+                    }
+                    else -> {
+                        AppListPage(
+                            workState,
+                            otherPackages = { mainState.apps.map { it.packageName }.toSet() },
+                        )
+                    }
                 }
             }
         }

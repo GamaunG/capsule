@@ -1,5 +1,7 @@
 # Capsule
 
+Repository: <https://github.com/GamaunG/capsule>
+
 Capsule is a Free and Open-Source (FOSS) app that leverages Android's
 **Work Profile** feature to provide an isolated space that you can install or
 clone apps into.

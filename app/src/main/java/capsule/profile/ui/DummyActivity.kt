@@ -35,6 +35,7 @@ import capsule.profile.services.IFileShuttleServiceCallback
 import capsule.profile.ui.components.InstallationProgressDialog
 import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.AuthenticationUtility
+import capsule.profile.util.CapsuleLog
 import capsule.profile.util.FileProviderProxy
 import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.SettingsManager
@@ -125,6 +126,7 @@ class DummyActivity : ComponentActivity() {
             if (!AuthenticationUtility.checkIntent(intent)) {
                 if (intent.action !in ACTIONS_ALLOWED_WITHOUT_SIGNATURE) {
                     // Unauthenticated: bail out immediately.
+                    CapsuleLog.w("Rejecting unauthenticated action ${intent.action}")
                     finish()
                     return
                 }
@@ -172,7 +174,8 @@ class DummyActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
+        // The original intent still carries the result callback binder, so it
+        // must stay intact; the delivery intent is only inspected here.
 
         if (PACKAGEINSTALLER_CALLBACK == intent.action) {
             when (
@@ -182,18 +185,24 @@ class DummyActivity : ComponentActivity() {
                 )
             ) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    CapsuleLog.i("PackageInstaller: user action required")
                     val pendingUserAction =
                         IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
                     if (pendingUserAction != null) {
                         startActivity(pendingUserAction)
                     } else {
+                        CapsuleLog.w("PackageInstaller: pending user action without an intent")
                         appInstallFinished(Activity.RESULT_CANCELED)
                     }
                 }
                 PackageInstaller.STATUS_SUCCESS -> {
+                    CapsuleLog.i("PackageInstaller: session finished successfully")
                     appInstallFinished(Activity.RESULT_OK)
                 }
                 else -> {
+                    val message =
+                        intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown"
+                    CapsuleLog.w("PackageInstaller: session failed: $message")
                     appInstallFinished(Activity.RESULT_CANCELED)
                 }
             }
@@ -231,6 +240,19 @@ class DummyActivity : ComponentActivity() {
     }
 
     private fun actionStartService() {
+        // A snapshot of the synced preferences travels with every bind so the
+        // two sides converge even when a single change event was missed.
+        if (isProfileOwner) {
+            @Suppress("DEPRECATION")
+            val bundle = intent.getBundleExtra("settings_sync")
+            if (bundle != null) {
+                SettingsManager.applySyncBundle(bundle)
+                Utility.enforceWorkProfilePolicies(this)
+            }
+            // Keep the auto-freeze listener alive while there is work for it.
+            FreezeService.armIfNeeded(this)
+        }
+
         // Foreground bind: this activity cannot hold the connection itself.
         (application as CapsuleApplication).bindCapsuleService(
             object : ServiceConnection {
@@ -253,6 +275,7 @@ class DummyActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION")
     private fun actionInstallPackage() {
+        CapsuleLog.i("Installing package: package=${intent.getStringExtra("package")} apk=${intent.getStringExtra("apk")}")
         var uri: Uri? = null
         if (intent.hasExtra("package")) {
             uri = Uri.fromParts("package", intent.getStringExtra("package"), null)
@@ -381,27 +404,30 @@ class DummyActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION")
     private fun actionUninstallPackage() {
+        val pkg =
+            intent.getStringExtra("package") ?: run {
+                CapsuleLog.w("Uninstall requested without a package name")
+                finish()
+                return
+            }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            CapsuleLog.i("Uninstalling $pkg through PackageInstaller")
             val pi = packageManager.packageInstaller
-            val intent = Intent(this, DummyActivity::class.java)
-            intent.action = PACKAGEINSTALLER_CALLBACK
+            val callbackIntent = Intent(this, DummyActivity::class.java)
+            callbackIntent.action = PACKAGEINSTALLER_CALLBACK
             val pendingIntent =
                 PendingIntent.getActivity(
                     this,
                     0,
-                    intent,
+                    callbackIntent,
                     PendingIntent.FLAG_MUTABLE,
                 )
-            val pkg =
-                intent.getStringExtra("package") ?: run {
-                    finish()
-                    return
-                }
             pi.uninstall(pkg, pendingIntent.intentSender)
             return
         }
 
-        val uri = Uri.fromParts("package", intent.getStringExtra("package"), null)
+        val uri = Uri.fromParts("package", pkg, null)
         val uninstallIntent = Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri)
         uninstallIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true)
         packageActivityLauncher.launch(uninstallIntent)
@@ -415,6 +441,7 @@ class DummyActivity : ComponentActivity() {
         // Always drop any forwarded Fd we may have been streaming from.
         FileProviderProxy.clearForwardProxy()
         installProgress = Float.NaN
+        CapsuleLog.i("Package operation finished with result $resultCode")
 
         if (!intent.hasExtra("callback")) {
             finish()
@@ -438,13 +465,17 @@ class DummyActivity : ComponentActivity() {
     private fun actionUnfreezeAndLaunch() {
         if (!isProfileOwner) {
             // Forward to the work profile with auto-freeze decisions attached.
-            val intent = Intent(UNFREEZE_AND_LAUNCH)
-            Utility.transferIntentToProfile(this, intent)
+            val srcIntent = intent
             val packageName =
-                intent.getStringExtra("packageName") ?: run {
+                srcIntent.getStringExtra("packageName") ?: run {
+                    CapsuleLog.w("Unfreeze and launch requested without a package name")
                     finish()
                     return
                 }
+            CapsuleLog.i("Forwarding unfreeze and launch for $packageName to the work profile")
+            val intent = Intent(UNFREEZE_AND_LAUNCH)
+            Utility.transferIntentToProfile(this, intent)
+            intent.putExtra("packageName", packageName)
             intent.putExtra(
                 "shouldFreeze",
                 SettingsManager.getAutoFreezeServiceEnabled() &&
@@ -453,8 +484,8 @@ class DummyActivity : ComponentActivity() {
                         packageName,
                     ),
             )
-            if (intent.hasExtra("linkedPackages")) {
-                val packages = intent.getStringExtra("linkedPackages")!!.split(",").toTypedArray()
+            if (srcIntent.hasExtra("linkedPackages")) {
+                val packages = srcIntent.getStringExtra("linkedPackages")!!.split(",").toTypedArray()
                 val packagesShouldFreeze = BooleanArray(packages.size)
                 for (i in packages.indices) {
                     packagesShouldFreeze[i] =
@@ -495,6 +526,7 @@ class DummyActivity : ComponentActivity() {
                 return
             }
 
+        CapsuleLog.i("Unfreezing and launching $packageName inside the profile")
         policyManager.setApplicationHidden(
             ComponentName(this, CapsuleDeviceAdminReceiver::class.java),
             packageName,
@@ -508,6 +540,7 @@ class DummyActivity : ComponentActivity() {
             }
             startActivity(launchIntent)
         } else {
+            CapsuleLog.w("No launch intent found for $packageName")
             Toast.makeText(this, getString(R.string.launch_app_fail, packageName), Toast.LENGTH_SHORT).show()
         }
 
@@ -602,15 +635,28 @@ class DummyActivity : ComponentActivity() {
                 finish()
                 return
             }
-        if (intent.hasExtra("boolean")) {
-            LocalStorageManager.setBoolean(name, intent.getBooleanExtra("boolean", false))
-        } else if (intent.hasExtra("int")) {
-            LocalStorageManager.setInt(name, intent.getIntExtra("int", Int.MIN_VALUE))
+        when {
+            intent.hasExtra("boolean") -> {
+                LocalStorageManager.setBoolean(name, intent.getBooleanExtra("boolean", false))
+            }
+
+            intent.hasExtra("int") -> {
+                LocalStorageManager.setInt(name, intent.getIntExtra("int", Int.MIN_VALUE))
+            }
+
+            intent.hasExtra("list") -> {
+                LocalStorageManager.setStringList(name, intent.getStringArrayExtra("list")?.toList() ?: emptyList())
+            }
         }
         SettingsManager.applyAll()
         if (isProfileOwner) {
             // Settings may have changed: refresh the profile policies.
             Utility.enforceWorkProfilePolicies(this)
+            if (name == LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE ||
+                name == LocalStorageManager.PREF_AUTO_FREEZE_SERVICE
+            ) {
+                FreezeService.armIfNeeded(this)
+            }
         }
         finish()
     }

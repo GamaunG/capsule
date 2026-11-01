@@ -25,6 +25,9 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.NFC" />
+    <!-- Best-effort exact timing for the auto-freeze pass; the app falls back
+         to inexact doze-aware alarms when the user has not granted it. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <permission
         android:name="capsule.profile.permission.INTERNAL_PROFILE_IPC"

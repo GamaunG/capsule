@@ -12,6 +12,7 @@ import android.content.pm.ProviderInfo
 import android.content.pm.ResolveInfo
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -55,6 +56,7 @@ import capsule.profile.R
 import capsule.profile.receivers.CapsuleDeviceAdminReceiver
 import capsule.profile.ui.components.AppDialog
 import capsule.profile.ui.components.DialogButton
+import capsule.profile.ui.components.HtmlText
 import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.AuthenticationUtility
 import capsule.profile.util.LocalStorageManager
@@ -223,6 +225,27 @@ class SetupWizardActivity : ComponentActivity() {
             false
         }
 
+    /** Opens the screen where a leftover work profile can be removed. */
+    private fun openAccountSettings() {
+        val candidates =
+            listOf(
+                // Settings > Accounts, where a work profile is removed on
+                // current Android versions.
+                Settings.ACTION_SYNC_SETTINGS,
+                // Settings > System > Multiple users, used by some ROMs.
+                "android.settings.USER_SETTINGS",
+                Settings.ACTION_SETTINGS,
+            )
+        for (action in candidates) {
+            try {
+                startActivity(Intent(action))
+                return
+            } catch (e: ActivityNotFoundException) {
+                // Try the next candidate screen.
+            }
+        }
+    }
+
     // ==== Compose UI ====
 
     private enum class WizardStep {
@@ -338,6 +361,7 @@ class SetupWizardActivity : ComponentActivity() {
                         titleRes = R.string.setup_wizard_failed,
                         textRes = R.string.setup_wizard_failed_text,
                         onCopyDiagnostics = { showDiagnostics = true },
+                        onOpenAccountSettings = { openAccountSettings() },
                     )
                 }
             }
@@ -459,6 +483,7 @@ class SetupWizardActivity : ComponentActivity() {
         textRes: Int,
         progress: Boolean = false,
         onCopyDiagnostics: (() -> Unit)? = null,
+        onOpenAccountSettings: (() -> Unit)? = null,
     ) {
         Column(
             modifier =
@@ -472,30 +497,57 @@ class SetupWizardActivity : ComponentActivity() {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
-            Text(
+            HtmlText(
                 text = stringResource(textRes),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (onCopyDiagnostics != null) {
+            if (onCopyDiagnostics != null || onOpenAccountSettings != null) {
                 Spacer(Modifier.height(24.dp))
-                Surface(
-                    shape = RoundedCornerShape(100.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    onClick = onCopyDiagnostics,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    ) {
-                        Text(
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onOpenAccountSettings != null) {
+                        WizardActionButton(
+                            text = stringResource(R.string.setup_open_account_settings),
+                            onClick = onOpenAccountSettings,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                    if (onCopyDiagnostics != null) {
+                        WizardActionButton(
                             text = stringResource(R.string.setup_copy_diagnostics),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            onClick = onCopyDiagnostics,
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun WizardActionButton(
+        text: String,
+        onClick: () -> Unit,
+        containerColor: androidx.compose.ui.graphics.Color,
+        contentColor: androidx.compose.ui.graphics.Color,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(100.dp),
+            color = containerColor,
+            contentColor = contentColor,
+            onClick = onClick,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }

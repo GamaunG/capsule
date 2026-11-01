@@ -7,21 +7,15 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -29,33 +23,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import capsule.profile.BuildConfig
 import capsule.profile.R
 import capsule.profile.services.ICapsuleService
 import capsule.profile.ui.components.AppDialog
+import capsule.profile.ui.components.AppTextField
 import capsule.profile.ui.components.DialogButton
 import capsule.profile.ui.components.GroupedCard
+import capsule.profile.ui.components.HtmlText
 import capsule.profile.ui.components.SectionHeader
 import capsule.profile.ui.components.SettingActionRow
+import capsule.profile.ui.components.SettingDropdownRow
 import capsule.profile.ui.components.SettingToggleRow
 import capsule.profile.ui.icons.ac_unit
 import capsule.profile.ui.icons.bug_report
 import capsule.profile.ui.icons.code
 import capsule.profile.ui.icons.contactless
-import capsule.profile.ui.icons.done
 import capsule.profile.ui.icons.folder
 import capsule.profile.ui.icons.info
 import capsule.profile.ui.icons.lock_clock
 import capsule.profile.ui.icons.search
 import capsule.profile.ui.icons.sync_alt
-import capsule.profile.ui.icons.translate
 import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.SettingsManager
 import capsule.profile.util.Utility
@@ -90,7 +81,7 @@ class SettingsActivity : ComponentActivity() {
     private fun SettingsScreen() {
         val manager = SettingsManager
         var fileChooser by remember { mutableStateOf(manager.getCrossProfileFileChooserEnabled()) }
-        var picker by remember { mutableStateOf(manager.getCrossProfilePickerEnabled()) }
+        var pickerMode by remember { mutableStateOf(manager.getCrossProfilePickerMode()) }
         var blockContacts by remember { mutableStateOf(manager.getBlockContactsSearchingEnabled()) }
         var paymentStub by remember { mutableStateOf(manager.getPaymentStubEnabled()) }
         var autoFreeze by remember { mutableStateOf(manager.getAutoFreezeServiceEnabled()) }
@@ -179,15 +170,24 @@ class SettingsActivity : ComponentActivity() {
                         checked = fileChooser,
                         enabled = fileChooserSupported,
                     ) { requestFileChooser(it) }
-                    SettingToggleRow(
+                    val pickerOptions =
+                        listOf(
+                            R.string.settings_picker_mode_disabled,
+                            R.string.settings_picker_mode_work_to_main,
+                            R.string.settings_picker_mode_main_to_work,
+                            R.string.settings_picker_mode_both,
+                        )
+                    SettingDropdownRow(
                         title = stringResource(R.string.settings_cross_profile_picker),
-                        desc = stringResource(R.string.settings_cross_profile_picker_desc),
+                        desc = stringResource(pickerOptions[pickerMode]),
                         icon = search,
-                        checked = picker,
-                    ) {
-                        manager.setCrossProfilePickerEnabled(it)
-                        picker = it
-                    }
+                        options = pickerOptions.map { stringResource(it) },
+                        selectedIndex = pickerMode,
+                        onSelect = {
+                            manager.setCrossProfilePickerMode(it)
+                            pickerMode = it
+                        },
+                    )
                     SettingToggleRow(
                         title = stringResource(R.string.settings_block_contacts_searching),
                         desc = stringResource(R.string.settings_block_contacts_searching_desc),
@@ -237,7 +237,7 @@ class SettingsActivity : ComponentActivity() {
                 GroupedCard {
                     SettingActionRow(
                         title = stringResource(R.string.settings_version),
-                        desc = versionName,
+                        desc = versionDisplay,
                         icon = info,
                         onClick = {},
                     )
@@ -246,12 +246,6 @@ class SettingsActivity : ComponentActivity() {
                         desc = stringResource(R.string.settings_source_code_url),
                         icon = code,
                         onClick = { openUrl(R.string.settings_source_code_url) },
-                    )
-                    SettingActionRow(
-                        title = stringResource(R.string.settings_translate),
-                        desc = stringResource(R.string.settings_translate_url),
-                        icon = translate,
-                        onClick = { openUrl(R.string.settings_translate_url) },
                     )
                     SettingActionRow(
                         title = stringResource(R.string.settings_bug_report),
@@ -264,12 +258,12 @@ class SettingsActivity : ComponentActivity() {
         }
 
         if (delayDialog) {
-            DelayPickerDialog(
-                current = delay,
+            DelayInputDialog(
+                currentMinutes = delay / 60,
                 onDismiss = { delayDialog = false },
                 onPick = {
-                    manager.setAutoFreezeDelay(it)
-                    delay = it
+                    manager.setAutoFreezeDelay(it * 60)
+                    delay = it * 60
                     delayDialog = false
                 },
             )
@@ -292,11 +286,7 @@ class SettingsActivity : ComponentActivity() {
                 onDismiss = { permissionDialog = null },
                 title = stringResource(R.string.app_name),
                 content = {
-                    Text(
-                        stringResource(res),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    HtmlText(stringResource(res))
                 },
                 dismiss =
                     DialogButton(
@@ -315,45 +305,58 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    /** Free-form minutes input for the auto-freeze delay. */
     @Composable
-    private fun DelayPickerDialog(
-        current: Int,
+    private fun DelayInputDialog(
+        currentMinutes: Int,
         onDismiss: () -> Unit,
         onPick: (Int) -> Unit,
     ) {
+        var text by remember { mutableStateOf(currentMinutes.toString()) }
+        var error by remember { mutableStateOf<String?>(null) }
+        val invalidText = stringResource(R.string.settings_auto_freeze_delay_invalid)
+
+        fun submit() {
+            val minutes = text.trim().toIntOrNull()
+            if (minutes == null || minutes < 0 || minutes > 24 * 60) {
+                error = invalidText
+            } else {
+                onPick(minutes)
+            }
+        }
+
         AppDialog(
             onDismiss = onDismiss,
             title = stringResource(R.string.settings_auto_freeze_delay),
+            containerColor = MaterialTheme.colorScheme.surface,
             dismiss = DialogButton(text = stringResource(R.string.cancel)),
+            confirm =
+                DialogButton(
+                    text = stringResource(R.string.ok),
+                    onClick = { submit() },
+                ),
             content = {
                 Column {
-                    AUTO_FREEZE_DELAY_SECONDS.forEach { seconds ->
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { onPick(seconds) }
-                                    .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.format_minutes, seconds / 60),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (seconds == current) {
-                                Icon(
-                                    imageVector = done,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
+                    AppTextField(
+                        value = text,
+                        onValueChange = {
+                            text = it
+                            if (error != null) error = null
+                        },
+                        label = stringResource(R.string.settings_auto_freeze_delay),
+                        error = error,
+                        singleLine = true,
+                        keyboardOptions =
+                            androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                            ),
+                        keyboardActions =
+                            androidx.compose.foundation.text.KeyboardActions(
+                                onDone = { submit() },
+                            ),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    )
                 }
             },
         )
@@ -375,6 +378,14 @@ class SettingsActivity : ComponentActivity() {
                 } ?: ""
             } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
                 ""
+            }
+
+    private val versionDisplay: String
+        get() =
+            buildString {
+                append(versionName)
+                append(" (").append(BuildConfig.GIT_COMMIT_HASH).append(")")
+                if (BuildConfig.DEBUG) append(" · Debug")
             }
 
     private fun openUrl(res: Int) {

@@ -52,6 +52,7 @@ import capsule.profile.R
 import capsule.profile.ui.DummyActivity
 import capsule.profile.ui.components.AppDialog
 import capsule.profile.ui.components.DialogButton
+import capsule.profile.ui.components.HtmlText
 import capsule.profile.ui.icons.ac_unit
 import capsule.profile.ui.icons.apps
 import capsule.profile.ui.icons.bolt
@@ -65,6 +66,7 @@ import capsule.profile.ui.icons.sync_alt
 import capsule.profile.ui.icons.tune
 import capsule.profile.ui.icons.widgets
 import capsule.profile.util.ApplicationInfoWrapper
+import capsule.profile.util.CapsuleLog
 import capsule.profile.util.Utility
 
 /** One profile's app list with pull-to-refresh, search and multi-select. */
@@ -72,6 +74,7 @@ import capsule.profile.util.Utility
 @Composable
 fun AppListPage(
     state: AppListState,
+    otherPackages: () -> Set<String>,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -142,6 +145,7 @@ fun AppListPage(
         AppActionsSheet(
             app = app,
             state = state,
+            otherPackages = otherPackages,
             onDismiss = { sheetApp = null },
             onClone = {
                 sheetApp = null
@@ -186,11 +190,7 @@ fun AppListPage(
             onDismiss = { miuiCloneApp = null },
             title = stringResource(R.string.app_name),
             content = {
-                Text(
-                    stringResource(R.string.miui_cannot_clone),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                HtmlText(stringResource(R.string.miui_cannot_clone))
             },
             dismiss =
                 DialogButton(
@@ -348,6 +348,7 @@ private fun AppListItem(
 private fun AppActionsSheet(
     app: ApplicationInfoWrapper,
     state: AppListState,
+    otherPackages: () -> Set<String>,
     onDismiss: () -> Unit,
     onClone: () -> Unit,
     onUninstall: () -> Unit,
@@ -360,13 +361,21 @@ private fun AppActionsSheet(
     onRestrictions: () -> Unit,
     onShortcut: () -> Unit,
 ) {
+    // The widget option only applies to apps that actually ship widgets.
+    var hasWidgets by remember { mutableStateOf(false) }
+    LaunchedEffect(app.packageName) { hasWidgets = state.hasWidgets(app) }
+    // Restrictions are only editable when the app publishes a schema for them.
+    var hasRestrictions by remember { mutableStateOf(false) }
+    LaunchedEffect(app.packageName) { hasRestrictions = state.hasEditableRestrictions(app) }
+    val inOtherProfile = app.packageName in otherPackages()
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
             SheetHeader(app)
             if (state.isRemote) {
-                if (!app.isSystem()) {
+                if (!app.isSystem() && !inOtherProfile) {
                     SheetAction(
                         icon = shield_person,
                         label = stringResource(R.string.clone_to_main_profile),
@@ -380,12 +389,14 @@ private fun AppActionsSheet(
                     SheetAction(icon = ac_unit, label = stringResource(R.string.freeze_app), onClick = onFreeze)
                     SheetAction(icon = play_arrow, label = stringResource(R.string.launch), onClick = onLaunch)
                 }
-                SheetAction(
-                    icon = widgets,
-                    label = stringResource(R.string.allow_cross_profile_widgets),
-                    checked = app.packageName in state.crossProfileWidgetProviders,
-                    onClick = { onWidgets(app.packageName !in state.crossProfileWidgetProviders) },
-                )
+                if (hasWidgets) {
+                    SheetAction(
+                        icon = widgets,
+                        label = stringResource(R.string.allow_cross_profile_widgets),
+                        checked = app.packageName in state.crossProfileWidgetProviders,
+                        onClick = { onWidgets(app.packageName !in state.crossProfileWidgetProviders) },
+                    )
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     SheetAction(
                         icon = sync_alt,
@@ -394,7 +405,7 @@ private fun AppActionsSheet(
                         onClick = { onCrossProfile(app.packageName !in state.crossProfilePackages) },
                     )
                 }
-                if (!app.isHidden()) {
+                if (!app.isHidden() && hasRestrictions) {
                     SheetAction(icon = tune, label = stringResource(R.string.manage_app_restrictions), onClick = onRestrictions)
                 }
                 SheetAction(
@@ -405,12 +416,14 @@ private fun AppActionsSheet(
                 )
                 SheetAction(icon = bolt, label = stringResource(R.string.create_unfreeze_shortcut), onClick = onShortcut)
             } else {
-                SheetAction(icon = shield_person, label = stringResource(R.string.clone_to_work_profile), onClick = onClone)
+                if (!inOtherProfile) {
+                    SheetAction(icon = shield_person, label = stringResource(R.string.clone_to_work_profile), onClick = onClone)
+                }
             }
             if (!app.isSystem()) {
                 SheetAction(icon = delete, label = stringResource(R.string.uninstall_app), onClick = onUninstall, destructive = true)
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -421,7 +434,7 @@ private fun SheetHeader(app: ApplicationInfoWrapper) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -454,7 +467,7 @@ private fun SheetAction(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .clickable { onClick() }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -545,6 +558,7 @@ fun SelectionBar(
 }
 
 private fun launchApp(context: Context, app: ApplicationInfoWrapper) {
+    CapsuleLog.i("Launching ${app.packageName} through the unfreeze and launch bridge")
     val intent = Intent(DummyActivity.UNFREEZE_AND_LAUNCH)
     intent.component = ComponentName(context, DummyActivity::class.java)
     intent.putExtra("packageName", app.packageName)
@@ -560,6 +574,7 @@ fun addUnfreezeShortcut(
     app: ApplicationInfoWrapper,
     linkedApps: List<ApplicationInfoWrapper>,
 ) {
+    CapsuleLog.i("Creating unfreeze shortcut for ${app.packageName} with ${linkedApps.size} linked apps")
     val iconBitmap = state.iconCache[app.packageName]
     var id = "capsule-" + app.packageName
     val launchIntent = Intent(DummyActivity.PUBLIC_UNFREEZE_AND_LAUNCH)

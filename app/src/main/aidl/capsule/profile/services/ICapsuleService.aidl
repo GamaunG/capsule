@@ -25,6 +25,7 @@ interface ICapsuleService {
     boolean hasSystemAlertPermission();
     boolean hasAllFileAccessPermission();
     List<String> getCrossProfileWidgetProviders();
+    boolean hasWidgetProviders(String packageName);
     boolean setCrossProfileWidgetProviderEnabled(String pkgName, boolean enabled);
     void setStartActivityProxy(in IStartActivityProxy proxy);
     List<String> getCrossProfilePackages();

@@ -13,6 +13,7 @@ object LocalStorageManager {
     const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE = "auto_freeze_list_work_profile"
     const val PREF_CROSS_PROFILE_FILE_CHOOSER = "cross_profile_file_chooser"
     const val PREF_CROSS_PROFILE_PICKER = "cross_profile_picker"
+    const val PREF_CROSS_PROFILE_PICKER_MODE = "cross_profile_picker_mode"
     const val PREF_AUTH_KEY = "auth_key"
     const val PREF_AUTH_NONCES = "auth_nonces"
     const val PREF_AUTO_FREEZE_SERVICE = "auto_freeze_service"
