@@ -22,6 +22,7 @@ import capsule.profile.util.Fuzzy
 import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.SettingsManager
 import capsule.profile.util.Utility
+import capsule.profile.util.WorkServiceHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,7 +38,10 @@ import kotlin.coroutines.resume
  * in coroutines and exposes Compose state.
  */
 class AppListState(
-    val service: ICapsuleService,
+    // Swappable on purpose: the work-profile bridge rebinds while its state
+    // holder survives, so the service reference must follow the fresh binder.
+    @Volatile
+    var service: ICapsuleService,
     val isRemote: Boolean,
     private val scope: CoroutineScope,
     val onMessage: (Int, String?) -> Unit,
@@ -94,6 +98,13 @@ class AppListState(
         const val APP_LIST_TIMEOUT_MS = 10_000L
     }
 
+    /**
+     * Confirms the bridge is alive before a synchronous call. A frozen
+     * work-profile process would be killed by such a call, so remote calls
+     * are always preceded by the oneway probe.
+     */
+    private suspend fun ensureBridge(): Boolean = !isRemote || WorkServiceHolder.ensureAlive()
+
     private suspend fun awaitGetApps(): List<ApplicationInfoWrapper>? {
         // A service dying mid-request would hang the coroutine forever and
         // leave the list in its loading state; bound the wait instead. Null
@@ -144,6 +155,12 @@ class AppListState(
                                 loading = false
                             }
                         }
+                    }
+                    if (!ensureBridge()) {
+                        // The bridge is down: keep the current list on screen;
+                        // the recovery paths own the reconnection.
+                        withContext(Dispatchers.Main) { refreshing = false }
+                        return@launch
                     }
                     val list = withContext(Dispatchers.IO) { awaitGetApps() }
                     if (list == null) {
@@ -313,7 +330,10 @@ class AppListState(
     fun freezeApp(app: ApplicationInfoWrapper) {
         scope.launch {
             try {
-                withContext(Dispatchers.IO) { service.freezeApp(app) }
+                withContext(Dispatchers.IO) {
+                    if (!ensureBridge()) return@withContext
+                    service.freezeApp(app)
+                }
                 withContext(Dispatchers.Main) {
                     onMessage(R.string.freeze_success, app.labelOrDefault)
                     refresh()
@@ -327,7 +347,10 @@ class AppListState(
     fun unfreezeApp(app: ApplicationInfoWrapper) {
         scope.launch {
             try {
-                withContext(Dispatchers.IO) { service.unfreezeApp(app) }
+                withContext(Dispatchers.IO) {
+                    if (!ensureBridge()) return@withContext
+                    service.unfreezeApp(app)
+                }
                 withContext(Dispatchers.Main) {
                     onMessage(R.string.unfreeze_success, app.labelOrDefault)
                     refresh()
@@ -341,7 +364,10 @@ class AppListState(
     /** Whether the app declares any app widget providers in its own profile. */
     suspend fun hasWidgets(app: ApplicationInfoWrapper): Boolean =
         try {
-            withContext(Dispatchers.IO) { service.hasWidgetProviders(app.packageName) }
+            withContext(Dispatchers.IO) {
+                if (!ensureBridge()) return@withContext false
+                service.hasWidgetProviders(app.packageName)
+            }
         } catch (e: Exception) {
             CapsuleLog.w("Failed to query widget providers of ${app.packageName}", e)
             false
@@ -350,18 +376,18 @@ class AppListState(
     /** Whether the app publishes any manifest-declared managed restrictions. */
     suspend fun hasEditableRestrictions(app: ApplicationInfoWrapper): Boolean =
         try {
-            val response =
-                withContext(Dispatchers.IO) {
-                    service.getManagedApplicationRestrictions(app.packageName)
-                }
-            val raw: ArrayList<android.os.Bundle>? =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    response.getParcelableArrayList("schema", android.os.Bundle::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    response.getParcelableArrayList("schema")
-                }
-            !raw.isNullOrEmpty()
+            withContext(Dispatchers.IO) {
+                if (!ensureBridge()) return@withContext false
+                val response = service.getManagedApplicationRestrictions(app.packageName)
+                val raw: ArrayList<android.os.Bundle>? =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        response.getParcelableArrayList("schema", android.os.Bundle::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        response.getParcelableArrayList("schema")
+                    }
+                !raw.isNullOrEmpty()
+            }
         } catch (e: Exception) {
             CapsuleLog.w("Failed to query managed restrictions of ${app.packageName}", e)
             false
@@ -379,17 +405,39 @@ class AppListState(
             }
         scope.launch(Dispatchers.IO) {
             try {
+                val target = if (isInstall) onOtherService() else service
+                if (target == null) {
+                    reportCancelled()
+                    return@launch
+                }
+                if (isInstall && !isRemote) {
+                    // Cloning from the main list runs on the work side: a
+                    // synchronous call into a frozen bridge process would be
+                    // killed by the system, surfacing as a spurious failure.
+                    if (!WorkServiceHolder.ensureAlive()) {
+                        reportCancelled()
+                        return@launch
+                    }
+                } else if (!isInstall && !ensureBridge()) {
+                    reportCancelled()
+                    return@launch
+                }
                 if (isInstall) {
-                    onOtherService()?.installApp(app, callback)
+                    target.installApp(app, callback)
                 } else {
-                    service.uninstallApp(app, callback)
+                    target.uninstallApp(app, callback)
                 }
             } catch (e: RemoteException) {
                 CapsuleLog.w("Failed to request ${if (isInstall) "clone" else "uninstall"} of ${app.packageName}", e)
-                scope.launch(Dispatchers.Main) {
-                    onMessage(R.string.app_operation_cancelled, null)
-                }
+                reportCancelled()
             }
+        }
+    }
+
+    /** Reports a request that never reached the other side. */
+    private fun reportCancelled() {
+        scope.launch(Dispatchers.Main) {
+            onMessage(R.string.app_operation_cancelled, null)
         }
     }
 
@@ -445,6 +493,7 @@ class AppListState(
             try {
                 val changed =
                     withContext(Dispatchers.IO) {
+                        if (!ensureBridge()) return@withContext false
                         service.setCrossProfileWidgetProviderEnabled(app.packageName, enabled)
                     }
                 if (changed) {
@@ -469,7 +518,9 @@ class AppListState(
                     crossProfilePackages.remove(app.packageName)
                 }
                 withContext(Dispatchers.IO) {
-                    service.setCrossProfilePackages(ArrayList(crossProfilePackages))
+                    if (ensureBridge()) {
+                        service.setCrossProfilePackages(ArrayList(crossProfilePackages))
+                    }
                 }
             } catch (e: RemoteException) {
                 // Leave the state unchanged.

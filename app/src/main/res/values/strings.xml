@@ -44,6 +44,8 @@
     <string name="service_auto_freeze_title">Auto-freeze pending</string>
     <string name="service_auto_freeze_desc">Apps on the Auto Freeze list will be frozen the next time the screen is locked.</string>
     <string name="service_auto_freeze_now">Freeze Now</string>
+    <string name="service_bridge_title">Work profile is active</string>
+    <string name="service_bridge_desc">This notification disappears when Capsule is closed.</string>
     <string name="app_installing">Installing…</string>
     <string name="app_installing_desc">The system package installer is working. This dialog closes automatically.</string>
 
@@ -135,6 +137,7 @@
     <string name="work_profile_paused_title">Work profile is paused</string>
     <string name="work_profile_paused_text">The profile stays isolated and nothing runs inside it until it is resumed.</string>
     <string name="work_profile_resume">Resume</string>
+    <string name="work_bridge_unavailable">The work profile is not reachable right now. Please try again.</string>
     <string name="work_profile_unreachable_title">Work profile is not reachable</string>
     <string name="work_profile_unreachable_text">A work profile exists, but Capsule cannot reach it. It may be managed by another app, or Capsule was removed from it. The profile can be removed under Settings → Accounts and backup → Work.</string>
     <string name="work_profile_open_settings">Open settings</string>

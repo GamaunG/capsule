@@ -60,9 +60,15 @@
             android:launchMode="singleTask"
             android:exported="false"/>
 
-        <!-- The Settings activity -->
-        <activity android:name=".ui.SettingsActivity"
-            android:label="@string/settings" />
+        <!-- Invisible target for resuming the paused work profile: the
+             launch is intercepted by the system unpause dialog, and on
+             confirmation this activity starts and finishes silently. -->
+        <activity android:name=".ui.UnfreezeProxyActivity"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:permission="capsule.profile.permission.INTERNAL_PROFILE_IPC"
+            android:exported="true" />
 
         <!-- Wraps intents that cross the profile boundary. Only cross-profile
              Activity intents are supported by the system. -->

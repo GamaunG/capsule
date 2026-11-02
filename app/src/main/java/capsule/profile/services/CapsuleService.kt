@@ -10,12 +10,18 @@ import android.content.RestrictionEntry
 import android.content.RestrictionsManager
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.Parcel
+import android.os.SystemClock
 import capsule.profile.CapsuleApplication
+import capsule.profile.R
 import capsule.profile.receivers.CapsuleDeviceAdminReceiver
 import capsule.profile.ui.DummyActivity
 import capsule.profile.util.ApplicationInfoWrapper
@@ -45,8 +51,46 @@ class CapsuleService : Service() {
     // All binder calls run off the main thread through one supervised scope.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    // The work-profile bridge binder is handed over as a raw proxy, which the
+    // system cannot see: without a foreground service the bridge process sits
+    // in the cached pool, the cached-app freezer freezes it after a few
+    // seconds and every synchronous call then kills it. The keep-alive below
+    // runs as a foreground service for exactly as long as the client keeps
+    // talking to the bridge, and releases itself once the traffic stops.
+    private val bridgeHandler = Handler(Looper.getMainLooper())
+    private var bridgeLeaseCheck: Runnable? = null
+
+    /** Written from binder threads as well; read on the main thread. */
+    @Volatile
+    private var bridgeForeground = false
+
+    /** Written from binder threads; read on the main thread only. */
+    @Volatile
+    private var lastBridgeTraffic = 0L
+
+    /** Renews the bridge session lease; safe from any thread. */
+    private fun touchBridgeLease() {
+        lastBridgeTraffic = SystemClock.elapsedRealtime()
+    }
+
     private val binder =
         object : ICapsuleService.Stub() {
+            override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
+                // Any incoming traffic renews the bridge session lease.
+                touchBridgeLease()
+                return super.onTransact(code, data, reply, flags)
+            }
+
+            override fun probeAlive(callback: IAliveCallback) {
+                // The request itself is the answer: reaching this code proves
+                // the process is running, and the reply is oneway too.
+                try {
+                    callback.alive()
+                } catch (e: android.os.RemoteException) {
+                    // The caller is gone.
+                }
+            }
+
             override fun ping() {
                 // Let the other side know we are alive.
             }
@@ -60,6 +104,7 @@ class CapsuleService : Service() {
                         // Stopping anyway.
                     }
 
+                    stopBridgeForeground()
                     (application as CapsuleApplication).unbindCapsuleService()
 
                     val keepProcess =
@@ -369,8 +414,83 @@ class CapsuleService : Service() {
         adminComponent = ComponentName(applicationContext, CapsuleDeviceAdminReceiver::class.java)
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.getBooleanExtra(EXTRA_BRIDGE_SESSION, false) == true && isProfileOwner) {
+            startBridgeForeground()
+        }
+        // The bridge is driven by its binding and binder traffic, so there is
+        // nothing worth restoring after a process death.
+        return START_NOT_STICKY
+    }
+
+    /** Arms the session-scoped foreground keep-alive for the work bridge. */
+    private fun startBridgeForeground() {
+        touchBridgeLease()
+        if (bridgeForeground) return
+        val notification =
+            Utility.buildNotification(
+                this,
+                important = false,
+                ticker = getString(R.string.service_bridge_title),
+                title = getString(R.string.service_bridge_title),
+                desc = getString(R.string.service_bridge_desc),
+                icon = R.drawable.ic_notification,
+            )
+        try {
+            // An explicit type keeps system_server from logging a typeless
+            // foreground-service complaint on API 34+.
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(
+                    BRIDGE_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
+                )
+            } else {
+                startForeground(BRIDGE_NOTIFICATION_ID, notification)
+            }
+            bridgeForeground = true
+            CapsuleLog.i("The bridge session keep-alive started")
+            scheduleBridgeLeaseCheck()
+        } catch (e: Exception) {
+            // Without the keep-alive the bridge still works, but the freezer
+            // may recycle it; the main side recovers as before.
+            CapsuleLog.w("Could not start the bridge session keep-alive", e)
+        }
+    }
+
+    private fun scheduleBridgeLeaseCheck() {
+        bridgeLeaseCheck?.let { bridgeHandler.removeCallbacks(it) }
+        val check =
+            Runnable {
+                bridgeLeaseCheck = null
+                if (!bridgeForeground) return@Runnable
+                if (SystemClock.elapsedRealtime() - lastBridgeTraffic > BRIDGE_LEASE_MS) {
+                    CapsuleLog.i("The bridge session lease expired; releasing the keep-alive")
+                    stopBridgeForeground()
+                } else {
+                    scheduleBridgeLeaseCheck()
+                }
+            }
+        bridgeLeaseCheck = check
+        bridgeHandler.postDelayed(check, BRIDGE_LEASE_CHECK_MS)
+    }
+
+    /** Drops the keep-alive; the process returns to the cached pool. */
+    private fun stopBridgeForeground() {
+        bridgeLeaseCheck?.let { bridgeHandler.removeCallbacks(it) }
+        bridgeLeaseCheck = null
+        if (!bridgeForeground) return
+        bridgeForeground = false
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        // Drop the started half only; the binding keeps the service object.
+        stopSelf()
+        CapsuleLog.i("The bridge session keep-alive stopped")
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        bridgeLeaseCheck?.let { bridgeHandler.removeCallbacks(it) }
+        bridgeLeaseCheck = null
         serviceScope.cancel()
     }
 
@@ -505,5 +625,17 @@ class CapsuleService : Service() {
         const val RESULT_CANNOT_INSTALL_SYSTEM_APP = 100001
         const val RESULT_ALREADY_EXISTS = 100002
         const val RESULT_CANNOT_ENABLE_SYSTEM_APP = 100003
+
+        /** Marks the service start that arms the bridge keep-alive. */
+        const val EXTRA_BRIDGE_SESSION = "bridge_session"
+
+        /** How long the bridge survives without any binder traffic. */
+        private const val BRIDGE_LEASE_MS = 30_000L
+
+        /** Granularity of the lease expiry check. */
+        private const val BRIDGE_LEASE_CHECK_MS = 5_000L
+
+        /** Distinct from the auto-freeze notification on purpose. */
+        private const val BRIDGE_NOTIFICATION_ID = 0xE49C1
     }
 }

@@ -1,18 +1,22 @@
 package capsule.profile.ui
 
+import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.LauncherApps
 import android.graphics.drawable.Icon
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
 import android.os.UserManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -30,6 +34,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,7 +45,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -56,26 +61,41 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import capsule.profile.BuildConfig
 import capsule.profile.R
 import capsule.profile.services.IAppInstallCallback
 import capsule.profile.services.ICapsuleService
-import capsule.profile.services.IStartActivityProxy
-import capsule.profile.ui.DummyActivity
 import capsule.profile.ui.applist.AppListPage
 import capsule.profile.ui.applist.AppListState
+import capsule.profile.ui.components.AppDialog
 import capsule.profile.ui.components.AppSearchField
 import capsule.profile.ui.components.AppSnackbarHost
+import capsule.profile.ui.components.AppTextField
+import capsule.profile.ui.components.DialogButton
+import capsule.profile.ui.components.GroupedCard
+import capsule.profile.ui.components.HtmlText
+import capsule.profile.ui.components.SectionHeader
+import capsule.profile.ui.components.SettingActionRow
+import capsule.profile.ui.components.SettingToggleRow
 import capsule.profile.ui.icons.ac_unit
 import capsule.profile.ui.icons.add
+import capsule.profile.ui.icons.arrow_back
 import capsule.profile.ui.icons.bolt
+import capsule.profile.ui.icons.bug_report
+import capsule.profile.ui.icons.code
+import capsule.profile.ui.icons.contactless
 import capsule.profile.ui.icons.done
 import capsule.profile.ui.icons.folder
 import capsule.profile.ui.icons.home
+import capsule.profile.ui.icons.info
 import capsule.profile.ui.icons.lock
+import capsule.profile.ui.icons.lock_clock
 import capsule.profile.ui.icons.more_vert
 import capsule.profile.ui.icons.search
 import capsule.profile.ui.icons.settings
 import capsule.profile.ui.icons.shield_person
+import capsule.profile.ui.icons.sync_alt
+import capsule.profile.ui.icons.verified
 import capsule.profile.ui.icons.visibility
 import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.AppListCache
@@ -95,6 +115,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+import java.text.DateFormat
 
 class MainActivity : ComponentActivity() {
     private val startSetup: ActivityResultLauncher<Void?> =
@@ -127,7 +151,8 @@ class MainActivity : ComponentActivity() {
             refreshScope.launch {
                 val granted =
                     withContext(Dispatchers.IO) {
-                        runCatching { work.hasInstallPermission() }.getOrDefault(false)
+                        WorkServiceHolder.ensureAlive() &&
+                            runCatching { work.hasInstallPermission() }.getOrDefault(false)
                     }
                 if (granted) {
                     selectApk.launch(null)
@@ -137,6 +162,76 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    // ==== Settings pane state (merged from the former SettingsActivity) ====
+
+    private val mainPermissionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            advancePermissionChain()
+        }
+
+    private val workPermissionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            advancePermissionChain()
+        }
+
+    // The Auto Freeze notification permission is asked once, when the service
+    // is enabled; its result does not change any flow in this screen.
+    private val workNotificationPermissionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            // Nothing to do: enabling the service does not depend on it.
+        }
+
+    private val selectCert: ActivityResultLauncher<Array<String>> =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) installCertificate(uri)
+        }
+
+    /**
+     * One step of a special-access permission chain. Each step is requested
+     * in order; returning from its settings screen advances to the next
+     * missing one, so enabling a feature never needs re-toggling.
+     */
+    private enum class PermissionGate(
+        val explainRes: Int,
+        val settingsAction: String,
+        val workSide: Boolean,
+    ) {
+        MAIN_ALL_FILES(R.string.request_storage_manager_main, Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION, false),
+        WORK_ALL_FILES(R.string.request_storage_manager_work, Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION, true),
+        MAIN_OVERLAY(R.string.request_system_alert_main, Settings.ACTION_MANAGE_OVERLAY_PERMISSION, false),
+        WORK_OVERLAY(R.string.request_system_alert_work, Settings.ACTION_MANAGE_OVERLAY_PERMISSION, true),
+        MAIN_USAGE(R.string.request_usage_stats_main, Settings.ACTION_USAGE_ACCESS_SETTINGS, false),
+        WORK_USAGE(R.string.request_usage_stats_work, Settings.ACTION_USAGE_ACCESS_SETTINGS, true),
+    }
+
+    /** The chain currently being walked; empty when idle. */
+    private var permissionChain: List<PermissionGate> = emptyList()
+
+    /** What to enable once the chain completes. */
+    private var chainTarget: (() -> Unit)? = null
+
+    /** The gate whose settings screen or dialog is currently up. */
+    private var pendingGate by mutableStateOf<PermissionGate?>(null)
+
+    /** One installed CA certificate with display metadata. */
+    private data class InstalledCert(
+        val encoded: ByteArray,
+        val label: String,
+        val validUntil: String,
+    )
+
+    // Certificate state lives on the activity: the install launcher callback
+    // runs outside composition.
+    private var certs by mutableStateOf<List<InstalledCert>?>(null)
+    private var certBusy by mutableStateOf(false)
+    private var certToRemove by mutableStateOf<InstalledCert?>(null)
+
+    // Cancels a superseded certificate load (re-entry, resume).
+    private var certLoadJob: Job? = null
+
+    /** Whether the in-app settings pane is shown instead of the app lists. */
+    private val showSettings = mutableStateOf(false)
+
     private lateinit var storage: LocalStorageManager
 
     private var probingWorkService = false
@@ -145,13 +240,14 @@ class MainActivity : ComponentActivity() {
     private var serviceWork: ICapsuleService? = null
 
     // List states, published to the Compose UI once the services are bound.
+    // The work state outlives work-service rebinds: only its binder swaps.
     private val mainListState = mutableStateOf<AppListState?>(null)
     private val workListState = mutableStateOf<AppListState?>(null)
     private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // Shared with the Compose scaffold so non-composable code (install
     // callbacks, freeze results) can show in-app messages.
-    private val snackbarHostState = SnackbarHostState()
+    private val snackbarHostState = androidx.compose.material3.SnackbarHostState()
 
     var showAll = false
         private set
@@ -170,6 +266,10 @@ class MainActivity : ComponentActivity() {
     private val workUnreachable = mutableStateOf(false)
     private val workAbsent = mutableStateOf(false)
 
+    // True while a lost work bridge is being recovered quietly, so the UI
+    // keeps showing the last list instead of the placeholder.
+    private val workReconnecting = mutableStateOf(false)
+
     // Notified when the work-profile service process dies, e.g. when the user
     // switches Work Mode off from quick settings while the app is open.
     private var workDeathRecipient: IBinder.DeathRecipient? = null
@@ -186,6 +286,19 @@ class MainActivity : ComponentActivity() {
     // Bounded auto-retry while the work profile exists but is still booting
     // (the "not reachable" banner used to stick until a manual revisit).
     private var unreachableRetryJob: Job? = null
+
+    // Periodic oneway probe that keeps the work-profile bridge lease alive
+    // while this UI is visible, and detects its death within one interval.
+    private var heartbeatJob: Job? = null
+
+    // Package change events from both profiles drive the list refreshes
+    // while the UI is visible, replacing refresh churn on reconnects.
+    private var packageEventsCallback: LauncherApps.Callback? = null
+    private var packageEventsJob: Job? = null
+    private val packageEventsHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // Guards against overlapping in-place recoveries launched from onResume.
+    private var recoveryInFlight = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -302,6 +415,7 @@ class MainActivity : ComponentActivity() {
             serviceWork = null
             WorkServiceHolder.update(null)
             servicesReady.value = false
+            workReconnecting.value = false
             return
         }
         workAbsent.value = false
@@ -321,6 +435,7 @@ class MainActivity : ComponentActivity() {
         serviceWork = null
         WorkServiceHolder.update(null)
         servicesReady.value = false
+        workReconnecting.value = false
         workListState.value = null
         workPaused.value = paused
         workUnreachable.value = !paused
@@ -374,6 +489,7 @@ class MainActivity : ComponentActivity() {
                 serviceWork = null
                 WorkServiceHolder.update(null)
                 servicesReady.value = false
+                workReconnecting.value = false
                 workListState.value = null
                 workPaused.value = false
                 workUnreachable.value = false
@@ -483,11 +599,40 @@ class MainActivity : ComponentActivity() {
             registerStartActivityProxies()
             servicesReady.value = true
             WorkServiceHolder.update(serviceWork)
+            workReconnecting.value = false
             unreachableRetryJob?.cancel()
+            // The state holder outlives the rebind: swap the binder and
+            // reload, so the visible list (and any open sheet) survives.
+            val state = workListState.value
+            if (state != null) {
+                state.service = serviceWork!!
+                state.refresh()
+            } else {
+                workListState.value = createWorkListState()
+                workListState.value?.refresh()
+            }
         } else {
             CapsuleLog.w("Failed to bind the work profile service (result=${result.resultCode})")
             onWorkServiceUnreachable()
         }
+    }
+
+    private fun createWorkListState(): AppListState =
+        AppListState(
+            service = serviceWork!!,
+            isRemote = true,
+            scope = refreshScope,
+            onMessage = ::showListMessage,
+            onOtherService = { serviceMain },
+            showAllProvider = { showAll },
+            refreshPeer = { mainListState.value?.refresh() },
+            cache = AppListCache(applicationContext, isRemote = true),
+        )
+
+    /** Shows a list snackbar from non-composable code paths. */
+    private fun showListMessage(res: Int, arg: String?) {
+        val message = if (arg != null) getString(res, arg) else getString(res)
+        refreshScope.launch { snackbarHostState.showSnackbar(message) }
     }
 
     /** Reacts to the work service process dying (Work Mode off, removal...). */
@@ -521,34 +666,118 @@ class MainActivity : ComponentActivity() {
     private fun onWorkServiceDied() {
         if (serviceWork == null) return
         CapsuleLog.w("The work profile service died")
+        silentlyReconnectWorkService()
+    }
+
+    /**
+     * Recovers a lost work bridge in place. The visible list is kept, so a
+     * brief reconnect neither flashes the placeholder nor closes an open
+     * sheet; the banner only settles in once the chain classifies the
+     * profile as paused, unreachable or gone.
+     */
+    private fun silentlyReconnectWorkService() {
+        if (workReconnecting.value && !servicesReady.value) return
+        workReconnecting.value = true
+        CapsuleLog.w("Reconnecting the work profile service quietly")
         detachWorkDeathRecipient()
         serviceWork = null
-        servicesReady.value = false
-        workListState.value = null
         WorkServiceHolder.update(null)
+        servicesReady.value = false
         // Probes launched from the background are silently blocked by the
         // system; while we are not resumed, onResume owns the recovery.
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             connectWorkService()
         }
+        refreshScope.launch {
+            delay(SILENT_RECONNECT_TIMEOUT_MS)
+            if (workReconnecting.value && !servicesReady.value) {
+                // Nothing concluded in time: classify and settle the banner.
+                workReconnecting.value = false
+                onWorkServiceUnreachable()
+            }
+        }
+    }
+
+    /** Keeps the work-profile service out of the freezer while the UI is up. */
+    private fun startHeartbeat() {
+        if (heartbeatJob?.isActive == true) return
+        heartbeatJob =
+            refreshScope.launch {
+                while (true) {
+                    delay(HEARTBEAT_INTERVAL_MS)
+                    if (!servicesReady.value || !WorkServiceHolder.available) continue
+                    if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) continue
+                    if (!WorkServiceHolder.probe()) {
+                        CapsuleLog.w("The work bridge missed a heartbeat; recovering")
+                        silentlyReconnectWorkService()
+                    }
+                }
+            }
     }
 
     fun getOtherService(isRemote: Boolean): ICapsuleService? =
         if (isRemote) serviceMain else serviceWork
 
-    private fun servicesAlive(): Boolean =
+    /** Subscribes to package changes in both profiles while the UI is visible. */
+    private fun registerPackageEvents() {
+        if (packageEventsCallback != null) return
+        val callback =
+            object : LauncherApps.Callback() {
+                override fun onPackageAdded(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
+
+                override fun onPackageRemoved(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
+
+                override fun onPackageChanged(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
+
+                override fun onPackagesAvailable(
+                    packageNames: Array<out String>?,
+                    user: android.os.UserHandle?,
+                    replacing: Boolean,
+                ) = onPackageEvent()
+
+                override fun onPackagesUnavailable(
+                    packageNames: Array<out String>?,
+                    user: android.os.UserHandle?,
+                    replacing: Boolean,
+                ) = onPackageEvent()
+            }
         try {
-            serviceMain!!.ping()
-            serviceWork!!.ping()
-            true
+            getSystemService(LauncherApps::class.java).registerCallback(callback, packageEventsHandler)
+            packageEventsCallback = callback
         } catch (e: Exception) {
-            false
+            // Without events the lists simply refresh on resume, as before.
+            CapsuleLog.w("Could not subscribe to package events", e)
         }
+    }
+
+    private fun unregisterPackageEvents() {
+        packageEventsCallback?.let {
+            runCatching { getSystemService(LauncherApps::class.java).unregisterCallback(it) }
+        }
+        packageEventsCallback = null
+        packageEventsJob?.cancel()
+        packageEventsJob = null
+    }
+
+    /**
+     * Debounced refresh after any package change: installs and removals
+     * arrive as bursts, and both lists are reloaded because each list's
+     * badges mirror the other profile.
+     */
+    private fun onPackageEvent() {
+        packageEventsJob?.cancel()
+        packageEventsJob =
+            refreshScope.launch {
+                delay(PACKAGE_EVENT_DEBOUNCE_MS)
+                mainListState.value?.refresh()
+                workListState.value?.refresh()
+            }
+    }
 
     private fun registerStartActivityProxies() {
         try {
             serviceMain!!.setStartActivityProxy(
-                object : IStartActivityProxy.Stub() {
+                object : capsule.profile.services.IStartActivityProxy.Stub() {
                     override fun startActivity(intent: Intent) {
                         this@MainActivity.startActivity(intent)
                     }
@@ -556,7 +785,7 @@ class MainActivity : ComponentActivity() {
             )
 
             serviceWork!!.setStartActivityProxy(
-                object : IStartActivityProxy.Stub() {
+                object : capsule.profile.services.IStartActivityProxy.Stub() {
                     override fun startActivity(intent: Intent) {
                         // Resolve the component in the other profile explicitly;
                         // a full intent may fail PackageManager resolution.
@@ -574,6 +803,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        startHeartbeat()
+        registerPackageEvents()
+        if (showSettings.value) reloadCerts()
 
         if (workAbsent.value) {
             if (Utility.getWorkProfileUserHandle(this) != null) {
@@ -613,19 +846,38 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        if (!servicesAlive()) {
-            // The services died while we were away. Recover IN PLACE: a
-            // restart via startActivity never worked here, because the
-            // singleTask launch intent is delivered to this very instance,
-            // which is about to finish - the app would simply close.
-            recoverServicesInPlace()
-            return
-        }
-
         // States change while we are away (shortcuts, batch freeze, installs):
-        // reload both lists on every resume.
-        mainListState.value?.refresh()
-        workListState.value?.refresh()
+        // reload both lists on every resume. The work service is confirmed
+        // through the oneway probe: a synchronous ping() would kill its
+        // process if the freezer got to it while we were away.
+        if (recoveryInFlight) return
+        recoveryInFlight = true
+        refreshScope.launch {
+            val mainAlive = serviceMain != null
+            val workAlive = serviceWork == null || WorkServiceHolder.ensureAlive()
+            withContext(Dispatchers.Main) {
+                recoveryInFlight = false
+                if (isFinishing) return@withContext
+                if (!mainAlive || !workAlive) {
+                    // The services died while we were away. Recover IN PLACE:
+                    // a restart via startActivity never worked here, because
+                    // the singleTask launch intent is delivered to this very
+                    // instance, which is about to finish - the app would
+                    // simply close.
+                    recoverServicesInPlace()
+                } else {
+                    mainListState.value?.refresh()
+                    workListState.value?.refresh()
+                }
+            }
+        }
+    }
+
+    override fun onPause() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+        unregisterPackageEvents()
+        super.onPause()
     }
 
     /** Drops the dead binders and restarts the bind chain without restarting. */
@@ -638,7 +890,7 @@ class MainActivity : ComponentActivity() {
         mainServiceReady.value = false
         servicesReady.value = false
         mainListState.value = null
-        workListState.value = null
+        // The work list state survives: it only swaps its binder on rebind.
         bindServices()
     }
 
@@ -671,44 +923,53 @@ class MainActivity : ComponentActivity() {
                     return
                 }
         if (resumeWatchJob?.isActive == true) return
+        CapsuleLog.i("Triggering the system resume dialog for the work profile")
+        launchSystemResumeDialog()
+        startResumeWatcher()
+    }
+
+    /**
+     * Starts our own invisible activity inside the paused profile: the
+     * system replaces such starts with its unpause confirmation, which lifts
+     * quiet mode when accepted — the same path launcher work tabs use, but
+     * opening nothing at all once the profile is running. The system app
+     * details screen is the fallback if that start is refused.
+     */
+    private fun launchSystemResumeDialog() {
+        val user = Utility.getWorkProfileUserHandle(this) ?: return
+        val launcherApps = getSystemService(LauncherApps::class.java)
+        try {
+            launcherApps.startMainActivity(
+                ComponentName(this, UnfreezeProxyActivity::class.java),
+                user,
+                null,
+                null,
+            )
+        } catch (e: Exception) {
+            CapsuleLog.w("The invisible resume start failed; falling back to app details", e)
+            try {
+                launcherApps.startAppDetailsActivity(
+                    ComponentName(this, MainActivity::class.java),
+                    user,
+                    null,
+                    null,
+                )
+            } catch (e2: Exception) {
+                CapsuleLog.w("The app details start into the paused profile failed", e2)
+            }
+        }
+    }
+
+    /**
+     * Waits for the user to answer the system resume dialog, then continues
+     * the bind chain once the profile has finished booting.
+     */
+    private fun startResumeWatcher() {
+        if (resumeWatchJob?.isActive == true) return
         resumeWatchJob =
             refreshScope.launch {
                 val manager = getSystemService(UserManager::class.java)
-                // Best effort: ask the system to leave quiet mode. Stock
-                // Android only honors this from the default launcher or the
-                // system itself, so expect a refusal here.
-                val requested =
-                    try {
-                        @Suppress("DEPRECATION")
-                        manager.requestQuietModeEnabled(false, user)
-                    } catch (e: Exception) {
-                        CapsuleLog.i("Direct quiet-mode request refused; using the system dialog", e)
-                        false
-                    }
-                // Give a honored direct request a moment before falling back
-                // to the user-visible confirmation.
-                val unpausedDirectly =
-                    requested &&
-                        withContext(Dispatchers.IO) {
-                            repeat(8) {
-                                if (!runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(true)) {
-                                    return@withContext true
-                                }
-                                kotlinx.coroutines.delay(250)
-                            }
-                            false
-                        }
-                if (unpausedDirectly) {
-                    CapsuleLog.i("The work profile resumed without a confirmation")
-                } else {
-                    // Launch the bridge probe INTO the paused profile: Android
-                    // intercepts the launch and offers the system "Unpause
-                    // work apps?" dialog, which lifts quiet mode on
-                    // confirmation — the same path launchers use.
-                    CapsuleLog.i("Triggering the system unpause dialog for the work profile")
-                    withContext(Dispatchers.Main) { launchPausedProfileProbe() }
-                }
-
+                val user = Utility.getWorkProfileUserHandle(this@MainActivity) ?: return@launch
                 // The dialog belongs to the user; allow a slow answer. Any
                 // outcome must end in either a bound list or the banner.
                 val unpaused =
@@ -717,22 +978,21 @@ class MainActivity : ComponentActivity() {
                             if (!runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(true)) {
                                 return@withContext true
                             }
-                            kotlinx.coroutines.delay(500)
+                            delay(500)
                         }
                         runCatching { !manager.isQuietModeEnabled(user) }.getOrDefault(false)
                     }
                 // Leaving quiet mode boots the profile user asynchronously:
                 // cross-profile resolution keeps failing for a moment, and a
                 // probe fired into that window dead-ends on the "not
-                // reachable" banner. Wait for the profile to resolve first
-                // (this is the wait the V8 watcher dropped by accident).
+                // reachable" banner. Wait for the profile to resolve first.
                 if (unpaused) {
                     withContext(Dispatchers.IO) {
                         repeat(40) {
                             if (Utility.resolvesInOtherProfile(this@MainActivity)) {
                                 return@withContext
                             }
-                            kotlinx.coroutines.delay(500)
+                            delay(500)
                         }
                     }
                 }
@@ -749,39 +1009,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-    }
-
-    /**
-     * Probes the bridge while the profile is paused: the launch itself is
-     * intercepted by the system, which shows the unpause confirmation.
-     * Cross-profile resolution can briefly fail while the profile user is
-     * stopped, so it is retried instead of dead-ending the resume flow.
-     */
-    private fun launchPausedProfileProbe() {
-        val intent = Intent(DummyActivity.TRY_START_SERVICE)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        refreshScope.launch {
-            val resolved =
-                withContext(Dispatchers.IO) {
-                    repeat(5) {
-                        try {
-                            Utility.transferIntentToProfileUnsigned(this@MainActivity, intent)
-                            return@withContext true
-                        } catch (e: IllegalStateException) {
-                            kotlinx.coroutines.delay(400)
-                        }
-                    }
-                    false
-                }
-            if (!resolved) {
-                // The watcher times out and lands on the banner.
-                CapsuleLog.w("Could not launch the unpause probe; the system dialog will not appear")
-                return@launch
-            }
-            AuthenticationUtility.signIntent(intent)
-            lastWorkProbeAt = 0
-            tryStartWorkService.launch(intent)
-        }
     }
 
     /** Opens the system settings home screen. */
@@ -808,7 +1035,7 @@ class MainActivity : ComponentActivity() {
         mainListState.value?.refresh()
         workListState.value?.refresh()
         refreshScope.launch {
-            kotlinx.coroutines.delay(2000)
+            delay(2000)
             mainListState.value?.refresh()
             workListState.value?.refresh()
             snackbarHostState.showSnackbar(getString(R.string.freeze_all_success))
@@ -839,7 +1066,8 @@ class MainActivity : ComponentActivity() {
         refreshScope.launch {
             val granted =
                 withContext(Dispatchers.IO) {
-                    runCatching { work.hasInstallPermission() }.getOrDefault(false)
+                    WorkServiceHolder.ensureAlive() &&
+                        runCatching { work.hasInstallPermission() }.getOrDefault(false)
                 }
             if (granted) {
                 selectApk.launch(null)
@@ -867,17 +1095,28 @@ class MainActivity : ComponentActivity() {
         val work = serviceWork ?: return
         CapsuleLog.i("Selected APK $uri for installation into the work profile")
         val proxy = UriForwardProxy(applicationContext, uri)
-        try {
-            work.installApk(
-                proxy,
-                object : IAppInstallCallback.Stub() {
-                    override fun callback(result: Int) {
-                        runOnUiThread { installResultCallback(result) }
+        refreshScope.launch {
+            val sent =
+                withContext(Dispatchers.IO) {
+                    if (!WorkServiceHolder.ensureAlive()) return@withContext false
+                    try {
+                        work.installApk(
+                            proxy,
+                            object : IAppInstallCallback.Stub() {
+                                override fun callback(result: Int) {
+                                    runOnUiThread { installResultCallback(result) }
+                                }
+                            },
+                        )
+                        true
+                    } catch (e: android.os.RemoteException) {
+                        CapsuleLog.w("Failed to forward the selected APK to the work profile", e)
+                        false
                     }
-                },
-            )
-        } catch (e: android.os.RemoteException) {
-            CapsuleLog.w("Failed to forward the selected APK to the work profile", e)
+                }
+            if (!sent) {
+                snackbarHostState.showSnackbar(getString(R.string.install_app_to_profile_fail))
+            }
         }
     }
 
@@ -931,17 +1170,338 @@ class MainActivity : ComponentActivity() {
     }
 
     fun openSettings() {
-        // The settings screen reads the work-profile bridge live from
-        // WorkServiceHolder; a binder snapshot passed through the intent
-        // would go stale the moment the bridge rebinds.
-        startActivity(Intent(this, SettingsActivity::class.java))
+        // The settings pane reads the work-profile bridge live from
+        // WorkServiceHolder; a binder snapshot passed around would go stale
+        // the moment the bridge rebinds.
+        showSettings.value = true
+        reloadCerts()
     }
+
+    // ==== Permission chains (merged from the former SettingsActivity) ====
+
+    /**
+     * Whether [gate] currently holds. Null means the work bridge is down, so
+     * the answer is unknown and the chain must stop without claiming the
+     * user declined anything.
+     */
+    private suspend fun isGateSatisfied(gate: PermissionGate): Boolean? {
+        if (gate.workSide) {
+            val work = serviceWork ?: return null
+            if (!WorkServiceHolder.ensureAlive()) return null
+            return try {
+                withContext(Dispatchers.IO) {
+                    when (gate) {
+                        PermissionGate.WORK_ALL_FILES -> work.hasAllFileAccessPermission()
+                        PermissionGate.WORK_OVERLAY -> work.hasSystemAlertPermission()
+                        PermissionGate.WORK_USAGE -> work.hasUsageStatsPermission()
+                        else -> true
+                    }
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return try {
+            when (gate) {
+                PermissionGate.MAIN_ALL_FILES -> {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                        Utility.checkAllFileAccessPermission()
+                }
+
+                PermissionGate.MAIN_OVERLAY -> {
+                    Utility.checkSystemAlertPermission(this)
+                }
+                PermissionGate.MAIN_USAGE -> {
+                    Utility.checkUsageStatsPermission(this)
+                }
+                else -> {
+                    true
+                }
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Walks the chain: requests the first still-missing permission, or
+     * finishes the chain when everything is granted. A permission that is
+     * still missing right after its settings screen was shown means the user
+     * declined it: the chain stops there.
+     */
+    private fun advancePermissionChain() {
+        val chain = permissionChain
+        if (chain.isEmpty()) return
+        refreshScope.launch {
+            for (gate in chain) {
+                val satisfied = isGateSatisfied(gate)
+                if (satisfied == null) {
+                    withContext(Dispatchers.Main) {
+                        CapsuleLog.w("The work bridge is down; stopping the permission chain")
+                        pendingGate = null
+                        permissionChain = emptyList()
+                        chainTarget = null
+                        snackbarHostState.showSnackbar(getString(R.string.work_profile_unreachable_title))
+                        if (!WorkServiceHolder.available) {
+                            silentlyReconnectWorkService()
+                        }
+                    }
+                    return@launch
+                }
+                if (!satisfied) {
+                    withContext(Dispatchers.Main) {
+                        if (gate == pendingGate) {
+                            // Back from this very permission's screen without
+                            // it being granted: the user declined; stop asking.
+                            CapsuleLog.i("Permission ${gate.name} was declined; stopping the chain")
+                            pendingGate = null
+                            permissionChain = emptyList()
+                            chainTarget = null
+                        } else {
+                            pendingGate = gate
+                        }
+                    }
+                    return@launch
+                }
+            }
+            withContext(Dispatchers.Main) {
+                CapsuleLog.i("Permission chain completed")
+                pendingGate = null
+                permissionChain = emptyList()
+                chainTarget?.invoke()
+                chainTarget = null
+            }
+        }
+    }
+
+    /** Starts a sequential permission chain for [gates] and enables on success. */
+    private fun startPermissionChain(
+        gates: List<PermissionGate>,
+        onGranted: () -> Unit,
+    ) {
+        permissionChain = gates
+        chainTarget = onGranted
+        pendingGate = null
+        advancePermissionChain()
+    }
+
+    /**
+     * Asks the work profile instance for the notification permission, so the
+     * Auto Freeze service's status notification (the thing that keeps its
+     * watcher alive) can actually be seen. No other feature needs it.
+     */
+    private fun requestWorkNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val intent = Intent(DummyActivity.REQUEST_NOTIFICATION_PERMISSION)
+        try {
+            Utility.transferIntentToProfile(this, intent)
+            workNotificationPermissionLauncher.launch(intent)
+        } catch (e: IllegalStateException) {
+            // The work profile is unreachable; the service still works, only
+            // its notification stays hidden.
+            CapsuleLog.w("Could not reach the work profile for the notification permission", e)
+        }
+    }
+
+    /** Launches the settings screen backing [gate], on the right profile. */
+    private fun launchGate(gate: PermissionGate) {
+        if (gate.workSide) {
+            val intent = Intent(DummyActivity.OPEN_SETTINGS_IN_PROFILE)
+            intent.putExtra("settings_action", gate.settingsAction)
+            try {
+                Utility.transferIntentToProfile(this, intent)
+                workPermissionLauncher.launch(intent)
+            } catch (e: IllegalStateException) {
+                CapsuleLog.w("The work profile is unreachable; stopping the chain", e)
+                pendingGate = null
+                permissionChain = emptyList()
+                chainTarget = null
+            }
+        } else {
+            mainPermissionLauncher.launch(Intent(gate.settingsAction))
+        }
+    }
+
+    // ==== Certificates (merged from the former SettingsActivity) ====
+
+    /**
+     * Reloads the installed certificate list from the work profile. The
+     * bridge is probed first so the call can never land on a frozen process,
+     * and the profile user may not have finished unlocking — its trust store
+     * then reads empty — so that condition is retried briefly instead of
+     * publishing a misleading "none installed".
+     */
+    private fun reloadCerts() {
+        certLoadJob?.cancel()
+        certLoadJob =
+            refreshScope.launch {
+                repeat(CERT_LOAD_ATTEMPTS) { attempt ->
+                    val work = serviceWork
+                    if (work == null && attempt == 0 && !WorkServiceHolder.available) {
+                        // A dead bridge is usually back within a heartbeat;
+                        // give it a chance before giving up on the list.
+                        silentlyReconnectWorkService()
+                    }
+                    if (work != null) {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    if (!WorkServiceHolder.ensureAlive()) return@withContext null
+                                    val list =
+                                        work.installedCaCerts.mapNotNull { bundle ->
+                                            parseCert(bundle.getByteArray("cert") ?: return@mapNotNull null)
+                                        }
+                                    // An empty list from a profile user that is
+                                    // still unlocking is a lie: retry it.
+                                    if (list.isEmpty() && isWorkUserLocked()) null else list
+                                } catch (e: Exception) {
+                                    CapsuleLog.w("Failed to list the installed certificates", e)
+                                    null
+                                }
+                            }
+                        if (result != null) {
+                            certs = result
+                            return@launch
+                        }
+                    }
+                    if (attempt < CERT_LOAD_ATTEMPTS - 1) {
+                        delay(CERT_LOAD_RETRY_MS)
+                    }
+                }
+                certs = null
+            }
+    }
+
+    /** True while the work profile user exists but is still unlocking. */
+    private fun isWorkUserLocked(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        val manager = getSystemService(UserManager::class.java)
+        val user = Utility.getWorkProfileUserHandle(this) ?: return false
+        return !manager.isUserUnlocked(user)
+    }
+
+    /** Outcome of a certificate operation, split by failure cause. */
+    private enum class CertOutcome {
+        OK,
+        BRIDGE_DOWN,
+        REJECTED,
+    }
+
+    /** Installs the certificate file behind [uri] into the profile store. */
+    private fun installCertificate(uri: Uri) {
+        val work = serviceWork
+        if (work == null) {
+            refreshScope.launch { showCertOutcome(CertOutcome.BRIDGE_DOWN) }
+            return
+        }
+        certBusy = true
+        refreshScope.launch {
+            val outcome =
+                withContext(Dispatchers.IO) {
+                    try {
+                        val bytes =
+                            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                ?: return@withContext CertOutcome.REJECTED
+                        if (!WorkServiceHolder.ensureAlive()) {
+                            return@withContext CertOutcome.BRIDGE_DOWN
+                        }
+                        // Only a survived call returning false blames the file.
+                        if (work.installCaCert(bytes)) CertOutcome.OK else CertOutcome.REJECTED
+                    } catch (e: Exception) {
+                        CapsuleLog.w("Failed to install the certificate", e)
+                        CertOutcome.BRIDGE_DOWN
+                    }
+                }
+            showCertOutcome(outcome, install = true)
+            if (outcome == CertOutcome.OK) reloadCerts()
+        }
+    }
+
+    /** Removes [cert] from the profile certificate store. */
+    private fun removeCertificate(cert: InstalledCert) {
+        val work = serviceWork
+        if (work == null) {
+            refreshScope.launch { showCertOutcome(CertOutcome.BRIDGE_DOWN) }
+            return
+        }
+        certBusy = true
+        refreshScope.launch {
+            val outcome =
+                withContext(Dispatchers.IO) {
+                    try {
+                        if (!WorkServiceHolder.ensureAlive()) {
+                            return@withContext CertOutcome.BRIDGE_DOWN
+                        }
+                        work.uninstallCaCert(cert.encoded)
+                        CertOutcome.OK
+                    } catch (e: Exception) {
+                        CapsuleLog.w("Failed to remove the certificate", e)
+                        CertOutcome.BRIDGE_DOWN
+                    }
+                }
+            showCertOutcome(outcome, install = false)
+            if (outcome == CertOutcome.OK) reloadCerts()
+        }
+    }
+
+    /** Ends a certificate operation: clears the busy flag and reports. */
+    private suspend fun showCertOutcome(outcome: CertOutcome, install: Boolean = true) {
+        certBusy = false
+        val message =
+            when (outcome) {
+                CertOutcome.OK -> {
+                    getString(if (install) R.string.cert_install_success else R.string.cert_remove_success)
+                }
+
+                CertOutcome.BRIDGE_DOWN -> {
+                    getString(R.string.work_bridge_unavailable)
+                }
+
+                CertOutcome.REJECTED -> {
+                    getString(if (install) R.string.cert_install_failed else R.string.cert_remove_failed)
+                }
+            }
+        snackbarHostState.showSnackbar(message)
+    }
+
+    /** Parses encoded certificate bytes into a displayable row. */
+    private fun parseCert(encoded: ByteArray): InstalledCert? =
+        try {
+            val cert =
+                CertificateFactory
+                    .getInstance("X.509")
+                    .generateCertificate(ByteArrayInputStream(encoded)) as X509Certificate
+            val dn = cert.subjectX500Principal.name
+            val label =
+                Regex("CN=([^,]+)")
+                    .find(dn)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: dn.ifEmpty { getString(R.string.cert_unnamed) }
+            InstalledCert(
+                encoded = encoded,
+                label = label,
+                validUntil = getString(R.string.cert_valid_until, DateFormat.getDateInstance().format(cert.notAfter)),
+            )
+        } catch (e: Exception) {
+            CapsuleLog.w("Failed to parse an installed certificate", e)
+            null
+        }
 
     // ==== Compose UI ====
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun MainScreen() {
+        BackHandler(enabled = showSettings.value) { showSettings.value = false }
+
+        if (showSettings.value) {
+            SettingsPane(onBack = { showSettings.value = false })
+            return
+        }
+
         if (!mainServiceReady.value) {
             // Blank while binding services or running the setup wizard; the
             // wizard activities render on top of this window.
@@ -973,43 +1533,18 @@ class MainActivity : ComponentActivity() {
                     service = serviceMain!!,
                     isRemote = false,
                     scope = scope,
-                    onMessage = { res, arg ->
-                        val message = if (arg != null) getString(res, arg) else getString(res)
-                        scope.launch { snackbarHostState.showSnackbar(message) }
-                    },
+                    onMessage = ::showListMessage,
                     onOtherService = { serviceWork },
                     showAllProvider = { showAll },
                     refreshPeer = { workListState.value?.refresh() },
                     cache = AppListCache(applicationContext, isRemote = false),
                 ).also { mainListState.value = it }
             }
-        // The work list only exists once the work service is bound; the
-        // paused/unreachable banner covers the gap in its place.
-        val workState =
-            if (servicesReady.value && serviceWork != null) {
-                remember {
-                    AppListState(
-                        service = serviceWork!!,
-                        isRemote = true,
-                        scope = scope,
-                        onMessage = { res, arg ->
-                            val message = if (arg != null) getString(res, arg) else getString(res)
-                            scope.launch { snackbarHostState.showSnackbar(message) }
-                        },
-                        onOtherService = { serviceMain },
-                        showAllProvider = { showAll },
-                        refreshPeer = { mainListState.value?.refresh() },
-                        cache = AppListCache(applicationContext, isRemote = true),
-                    ).also { workListState.value = it }
-                }
-            } else {
-                null
-            }
+        // The work state is created by the activity when the bridge binds
+        // and survives rebinds, so a brief reconnect never drops the sheet.
+        val workState = workListState.value
 
-        // One effect per list: keys changing on one side must not re-run the
-        // other side's refresh.
         LaunchedEffect(mainState) { mainState.refresh() }
-        LaunchedEffect(workState) { workState?.refresh() }
 
         LaunchedEffect(mainState.apps) {
             // A list that is still loading is transiently empty; publishing
@@ -1139,6 +1674,7 @@ class MainActivity : ComponentActivity() {
                             onOpenAppInfo = { app -> openAppDetails(app, isRemote = false) },
                         )
                     }
+
                     else -> {
                         val state = workState
                         if (state != null) {
@@ -1164,16 +1700,16 @@ class MainActivity : ComponentActivity() {
         }
 
         if (showAllConfirm) {
-            capsule.profile.ui.components.AppDialog(
-                onDismiss = { showAllConfirm = false },
+            AppDialog(
                 title = stringResource(R.string.show_all),
+                onDismiss = { showAllConfirm = false },
                 message = stringResource(R.string.show_all_warning),
                 dismiss =
-                    capsule.profile.ui.components.DialogButton(
+                    DialogButton(
                         text = stringResource(R.string.cancel),
                     ),
                 confirm =
-                    capsule.profile.ui.components.DialogButton(
+                    DialogButton(
                         text = stringResource(R.string.ok),
                         onClick = {
                             showAll = true
@@ -1205,7 +1741,7 @@ class MainActivity : ComponentActivity() {
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             ) {
                 Icon(
@@ -1418,6 +1954,392 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ==== Settings pane (merged from the former SettingsActivity) ====
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun SettingsPane(onBack: () -> Unit) {
+        val manager = SettingsManager
+        var fileChooser by remember { mutableStateOf(manager.getCrossProfileFileChooserEnabled()) }
+        var pickerMode by remember { mutableStateOf(manager.getCrossProfilePickerMode()) }
+        var blockContacts by remember { mutableStateOf(manager.getBlockContactsSearchingEnabled()) }
+        var paymentStub by remember { mutableStateOf(manager.getPaymentStubEnabled()) }
+        var autoFreeze by remember { mutableStateOf(manager.getAutoFreezeServiceEnabled()) }
+        var skipForeground by remember { mutableStateOf(manager.getSkipForegroundEnabled()) }
+        var delay by remember { mutableStateOf(manager.getAutoFreezeDelay()) }
+        var delayDialog by remember { mutableStateOf(false) }
+
+        val fileChooserSupported =
+            remember {
+                // All-files access landed in R; low-RAM (Android Go) devices forbid
+                // the overlay permission File Shuttle depends on.
+                Build.VERSION.SDK_INT != Build.VERSION_CODES.Q &&
+                    !(getSystemService(ACTIVITY_SERVICE) as ActivityManager).isLowRamDevice
+            }
+
+        fun requestFileChooser(enable: Boolean) {
+            if (!enable) {
+                manager.setCrossProfileFileChooserEnabled(false)
+                fileChooser = false
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Every missing permission is requested one after another:
+                // both profiles need all-files access, and the overlay
+                // permission lets File Shuttle start in the background.
+                startPermissionChain(
+                    listOf(
+                        PermissionGate.MAIN_ALL_FILES,
+                        PermissionGate.WORK_ALL_FILES,
+                        PermissionGate.MAIN_OVERLAY,
+                        PermissionGate.WORK_OVERLAY,
+                    ),
+                ) {
+                    manager.setCrossProfileFileChooserEnabled(true)
+                    fileChooser = true
+                }
+            } else {
+                manager.setCrossProfileFileChooserEnabled(true)
+                fileChooser = true
+            }
+        }
+
+        fun requestSkipForeground(enable: Boolean) {
+            if (!enable) {
+                manager.setSkipForegroundEnabled(false)
+                skipForeground = false
+                return
+            }
+            startPermissionChain(
+                listOf(PermissionGate.MAIN_USAGE, PermissionGate.WORK_USAGE),
+            ) {
+                manager.setSkipForegroundEnabled(true)
+                skipForeground = true
+            }
+        }
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.settings)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                arrow_back,
+                                contentDescription = stringResource(R.string.settings_back),
+                            )
+                        }
+                    },
+                )
+            },
+            snackbarHost = { AppSnackbarHost(snackbarHostState) },
+        ) { padding ->
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                SectionHeader(stringResource(R.string.settings_interaction), icon = sync_alt)
+                GroupedCard {
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_cross_profile_file_chooser),
+                        desc = stringResource(R.string.settings_cross_profile_file_chooser_desc),
+                        icon = folder,
+                        checked = fileChooser,
+                        enabled = fileChooserSupported,
+                    ) { requestFileChooser(it) }
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_cross_profile_picker_main_to_work),
+                        desc = stringResource(R.string.settings_cross_profile_picker_desc),
+                        icon = search,
+                        checked =
+                            pickerMode == SettingsManager.PICKER_MAIN_TO_WORK ||
+                                pickerMode == SettingsManager.PICKER_BOTH,
+                    ) {
+                        val mode = if (it) SettingsManager.PICKER_MAIN_TO_WORK else SettingsManager.PICKER_DISABLED
+                        manager.setCrossProfilePickerMode(mode)
+                        pickerMode = mode
+                    }
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_block_contacts_searching),
+                        desc = stringResource(R.string.settings_block_contacts_searching_desc),
+                        icon = contactless,
+                        checked = blockContacts,
+                    ) {
+                        manager.setBlockContactsSearchingEnabled(it)
+                        blockContacts = it
+                    }
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_payment_stub),
+                        desc = stringResource(R.string.settings_payment_stub_desc),
+                        icon = contactless,
+                        checked = paymentStub,
+                    ) {
+                        manager.setPaymentStubEnabled(it)
+                        paymentStub = it
+                    }
+                }
+
+                SectionHeader(stringResource(R.string.settings_services), icon = ac_unit)
+                GroupedCard {
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_auto_freeze_service),
+                        desc = stringResource(R.string.settings_auto_freeze_service_desc),
+                        icon = ac_unit,
+                        checked = autoFreeze,
+                    ) {
+                        manager.setAutoFreezeServiceEnabled(it)
+                        autoFreeze = it
+                        if (it) requestWorkNotificationPermission()
+                    }
+                    SettingActionRow(
+                        title = stringResource(R.string.settings_auto_freeze_delay),
+                        desc = stringResource(R.string.format_minutes, delay / 60),
+                        icon = lock_clock,
+                        onClick = { delayDialog = true },
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_dont_freeze_foreground),
+                        desc = stringResource(R.string.settings_dont_freeze_foreground_desc),
+                        icon = lock_clock,
+                        checked = skipForeground,
+                    ) { requestSkipForeground(it) }
+                }
+
+                SectionHeader(stringResource(R.string.settings_certificates), icon = verified)
+                GroupedCard {
+                    SettingActionRow(
+                        title = stringResource(R.string.cert_install),
+                        desc = stringResource(R.string.cert_install_desc),
+                        icon = verified,
+                        enabled = WorkServiceHolder.available && !certBusy,
+                        onClick = { selectCert.launch(arrayOf("*/*")) },
+                    )
+                    val certList = certs
+                    if (WorkServiceHolder.available && certList != null) {
+                        if (certList.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.cert_none),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        } else {
+                            certList.forEach { cert ->
+                                SettingActionRow(
+                                    title = cert.label,
+                                    desc = cert.validUntil,
+                                    icon = verified,
+                                    enabled = !certBusy,
+                                    onClick = { certToRemove = cert },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                SectionHeader(stringResource(R.string.settings_about), icon = info)
+                GroupedCard {
+                    SettingActionRow(
+                        title = stringResource(R.string.settings_version),
+                        desc = versionDisplay,
+                        icon = info,
+                        onClick = {},
+                    )
+                    SettingActionRow(
+                        title = stringResource(R.string.settings_source_code),
+                        desc = stringResource(R.string.settings_source_code_url),
+                        icon = code,
+                        onClick = { openUrl(R.string.settings_source_code_url) },
+                    )
+                    SettingActionRow(
+                        title = stringResource(R.string.settings_bug_report),
+                        desc = stringResource(R.string.settings_bug_report_url),
+                        icon = bug_report,
+                        onClick = { openUrl(R.string.settings_bug_report_url) },
+                    )
+                }
+            }
+        }
+
+        if (delayDialog) {
+            DelayInputDialog(
+                currentMinutes = delay / 60,
+                onDismiss = { delayDialog = false },
+                onPick = {
+                    manager.setAutoFreezeDelay(it * 60)
+                    delay = it * 60
+                    delayDialog = false
+                },
+            )
+        }
+
+        pendingGate?.let { gate ->
+            fun cancelChain() {
+                pendingGate = null
+                permissionChain = emptyList()
+                chainTarget = null
+            }
+            AppDialog(
+                onDismiss = { cancelChain() },
+                title = stringResource(R.string.app_name),
+                content = {
+                    HtmlText(stringResource(gate.explainRes))
+                },
+                dismiss =
+                    DialogButton(
+                        text = stringResource(R.string.cancel),
+                        onClick = { cancelChain() },
+                    ),
+                confirm =
+                    DialogButton(
+                        text = stringResource(R.string.ok),
+                        autoDismiss = false,
+                        onClick = {
+                            // pendingGate stays set: the return trip checks
+                            // whether this very permission was granted. The
+                            // dialog remains visible under the settings screen
+                            // and is replaced or cleared by the next step.
+                            launchGate(gate)
+                        },
+                    ),
+            )
+        }
+
+        certToRemove?.let { cert ->
+            AppDialog(
+                onDismiss = { certToRemove = null },
+                title = stringResource(R.string.cert_remove_title),
+                content = {
+                    Column {
+                        Text(
+                            text = cert.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        HtmlText(stringResource(R.string.cert_remove_text))
+                    }
+                },
+                dismiss =
+                    DialogButton(
+                        text = stringResource(R.string.cancel),
+                        onClick = { certToRemove = null },
+                    ),
+                confirm =
+                    DialogButton(
+                        text = stringResource(R.string.remove),
+                        destructive = true,
+                        enabled = !certBusy,
+                        onClick = {
+                            certToRemove = null
+                            removeCertificate(cert)
+                        },
+                    ),
+            )
+        }
+
+        if (certBusy) {
+            AppDialog(
+                onDismiss = {},
+                title = stringResource(R.string.app_name),
+                dismissible = false,
+                message = stringResource(R.string.cert_busy),
+            )
+        }
+    }
+
+    /** Free-form minutes input for the auto-freeze delay. */
+    @Composable
+    private fun DelayInputDialog(
+        currentMinutes: Int,
+        onDismiss: () -> Unit,
+        onPick: (Int) -> Unit,
+    ) {
+        var text by remember { mutableStateOf(currentMinutes.toString()) }
+        var error by remember { mutableStateOf<String?>(null) }
+        val invalidText = stringResource(R.string.settings_auto_freeze_delay_invalid)
+
+        fun submit() {
+            val minutes = text.trim().toIntOrNull()
+            if (minutes == null || minutes < 0 || minutes > 24 * 60) {
+                error = invalidText
+            } else {
+                onPick(minutes)
+            }
+        }
+
+        AppDialog(
+            onDismiss = onDismiss,
+            title = stringResource(R.string.settings_auto_freeze_delay),
+            containerColor = MaterialTheme.colorScheme.surface,
+            dismiss = DialogButton(text = stringResource(R.string.cancel)),
+            confirm =
+                DialogButton(
+                    text = stringResource(R.string.ok),
+                    onClick = { submit() },
+                ),
+            content = {
+                Column {
+                    AppTextField(
+                        value = text,
+                        onValueChange = {
+                            text = it
+                            if (error != null) error = null
+                        },
+                        label = stringResource(R.string.settings_auto_freeze_delay),
+                        error = error,
+                        singleLine = true,
+                        keyboardOptions =
+                            androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                            ),
+                        keyboardActions =
+                            androidx.compose.foundation.text.KeyboardActions(
+                                onDone = { submit() },
+                            ),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    )
+                }
+            },
+        )
+    }
+
+    private val versionName: String
+        get() =
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    packageManager
+                        .getPackageInfo(
+                            packageName,
+                            android.content.pm.PackageManager.PackageInfoFlags
+                                .of(0),
+                        ).versionName
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(packageName, 0).versionName
+                } ?: ""
+            } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
+                ""
+            }
+
+    private val versionDisplay: String
+        get() =
+            buildString {
+                append(versionName)
+                append(" (").append(BuildConfig.GIT_COMMIT_HASH).append(")")
+                if (BuildConfig.DEBUG) append(" · Debug")
+            }
+
+    private fun openUrl(res: Int) {
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(getString(res)))
+        startActivity(intent)
+    }
+
     /** Loads the persisted package set of one profile for instant badges. */
     private fun loadCachedPackages(isWork: Boolean): Set<String> =
         LocalStorageManager
@@ -1460,6 +2382,19 @@ class MainActivity : ComponentActivity() {
         /** Auto-retry budget for a work profile that is only booting. */
         private const val UNREACHABLE_RETRIES = 5
         private const val UNREACHABLE_RETRY_INTERVAL_MS = 4_000L
+
+        /** Work-bridge heartbeat spacing; well under the freeze debounce. */
+        private const val HEARTBEAT_INTERVAL_MS = 3_000L
+
+        /** Coalesces package event bursts into one list refresh. */
+        private const val PACKAGE_EVENT_DEBOUNCE_MS = 700L
+
+        /** Upper bound for a quiet reconnect before the banner settles in. */
+        private const val SILENT_RECONNECT_TIMEOUT_MS = 15_000L
+
+        /** Attempts and spacing for the initial certificate list load. */
+        private const val CERT_LOAD_ATTEMPTS = 4
+        private const val CERT_LOAD_RETRY_MS = 1_500L
 
         // Bind-chain pacing is process-wide on purpose: provisioning the
         // profile regenerates SystemUI overlays, whose CONFIG_ASSETS_PATHS

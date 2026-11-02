@@ -4,6 +4,7 @@ package capsule.profile.services;
 import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 
+import capsule.profile.services.IAliveCallback;
 import capsule.profile.services.IAppInstallCallback;
 import capsule.profile.services.IGetAppsCallback;
 import capsule.profile.services.ILoadIconCallback;
@@ -12,6 +13,9 @@ import capsule.profile.util.ApplicationInfoWrapper;
 import capsule.profile.util.UriForwardProxy;
 
 interface ICapsuleService {
+    // Oneway on purpose: it is queued into a freezer-frozen service process
+    // and thaws it, which a synchronous call can never do.
+    oneway void probeAlive(in IAliveCallback callback);
     void ping();
     void stopCapsuleService(boolean kill);
     void getApps(IGetAppsCallback callback, boolean showAll);

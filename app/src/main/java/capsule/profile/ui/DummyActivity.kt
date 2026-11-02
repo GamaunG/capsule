@@ -29,6 +29,7 @@ import androidx.core.content.IntentCompat
 import capsule.profile.CapsuleApplication
 import capsule.profile.R
 import capsule.profile.receivers.CapsuleDeviceAdminReceiver
+import capsule.profile.services.CapsuleService
 import capsule.profile.services.FreezeService
 import capsule.profile.services.IAppInstallCallback
 import capsule.profile.services.IFileShuttleService
@@ -282,12 +283,25 @@ class DummyActivity : ComponentActivity() {
             }
             // Keep the auto-freeze listener alive while there is work for it.
             FreezeService.armIfNeeded(this)
+            // Arm the session keep-alive before handing the binder over: a
+            // raw cross-profile proxy keeps the bridge process in the cached
+            // pool, where the freezer would recycle it within seconds.
+            val bridgeIntent = Intent(this, CapsuleService::class.java)
+            bridgeIntent.putExtra(CapsuleService.EXTRA_BRIDGE_SESSION, true)
+            try {
+                ContextCompat.startForegroundService(this, bridgeIntent)
+            } catch (e: Exception) {
+                // The bridge still works without the keep-alive; the freezer
+                // churn is recovered by the reconnect logic.
+                CapsuleLog.w("Could not arm the bridge keep-alive", e)
+            }
         }
 
-        // Foreground bind: this activity cannot hold the connection itself.
-        // No foreground notification: the main profile app keeps the bridge
-        // alive for exactly as long as it needs it, and its death recipient
-        // rebinds on the rare occasion the process is reclaimed anyway.
+        // Foreground bind: this activity cannot hold the connection itself,
+        // so the connection is kept by the shared application object; the
+        // session keep-alive armed above keeps the process out of the cached
+        // pool, and the main side's death recipient rebinds if the process
+        // is reclaimed anyway.
         (application as CapsuleApplication).bindCapsuleService(
             object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {

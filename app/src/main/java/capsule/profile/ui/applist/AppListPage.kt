@@ -89,6 +89,17 @@ fun AppListPage(
     var restrictionsApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
     var batchShortcutSheet by remember { mutableStateOf(false) }
 
+    // A sheet must not linger for an app that left the list, e.g. one that
+    // was uninstalled from the App Info screen opened from the sheet itself.
+    LaunchedEffect(state.apps) {
+        val current = sheetApp ?: return@LaunchedEffect
+        if (!state.loading && !state.fromCache &&
+            state.apps.none { it.packageName == current.packageName }
+        ) {
+            sheetApp = null
+        }
+    }
+
     Column(modifier.fillMaxSize()) {
         if (state.selectionMode) {
             SelectionBar(
@@ -617,6 +628,7 @@ private fun SheetAction(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
                 .let { base ->
                     if (checked != null) {
                         // Announce the whole row as one checkbox control.
@@ -629,8 +641,7 @@ private fun SheetAction(
                     } else {
                         base.clickable(enabled = enabled) { onClick() }
                     }
-                }.clip(RoundedCornerShape(16.dp))
-                .let { if (enabled) it else it.alpha(0.45f) }
+                }.let { if (enabled) it else it.alpha(0.45f) }
                 .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
