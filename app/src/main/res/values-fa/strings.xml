@@ -64,7 +64,6 @@
     <string name="fragment_profile_main">اصلی</string>
     <string name="fragment_profile_work">شلتر</string>
     <string name="list_item_disabled">%s قفل شده</string>
-    <string name="batch_operation">عملیات جمعی</string>
     <string name="clone_to_work_profile">کپی به شلتر (Work Profile)</string>
     <string name="clone_to_main_profile">کپی به پروفایل اصلی</string>
     <string name="uninstall_app">حذف نصب</string>

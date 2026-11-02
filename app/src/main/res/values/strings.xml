@@ -53,8 +53,6 @@
     <string name="fragment_profile_main">Main</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Frozen] %s</string>
-    <string name="batch_operation">Batch operation</string>
-    <string name="batch_selected_count">%d selected</string>
     <string name="list_empty">No apps to show here</string>
     <string name="list_loading">Loading…</string>
     <string name="search_hint">Search apps</string>
@@ -106,6 +104,7 @@
     <string name="settings_payment_stub">Payment Service Stub</string>
     <string name="settings_payment_stub_desc">Enable a fake NFC payment service in the main profile, so that the \"contactless payments\" option under Settings - NFC becomes enabled to allow you to choose a payment app inside the work profile. This works around an Android bug that makes it impossible to select a payment app inside the work profile if none is available in the main profile.</string>
     <string name="settings_services">Services</string>
+    <string name="settings_unfreeze_method">Unfreeze method</string>
     <string name="settings_auto_freeze_service">Auto Freeze Service</string>
     <string name="settings_auto_freeze_service_desc">When the screen is locked, automatically freeze every unfrozen app on the Auto Freeze list, including apps launched through \"Unfreeze &amp; Launch\".</string>
     <string name="settings_auto_freeze_delay">Auto Freeze Delay</string>
@@ -137,6 +136,19 @@
     <string name="work_profile_paused_title">Work profile is paused</string>
     <string name="work_profile_paused_text">The profile stays isolated and nothing runs inside it until it is resumed.</string>
     <string name="work_profile_resume">Resume</string>
+    <string name="resume_method_title">Unfreeze method</string>
+    <string name="resume_method_hint">Choose how the Resume button turns the work profile back on. The system still asks you to confirm; every step is written to the diagnostic log.</string>
+    <string name="resume_method_failed">The unfreeze method could not run. Try another one in Settings.</string>
+    <string name="resume_method_forward">Forwarded intent</string>
+    <string name="resume_method_forward_hint">Through Capsule\'s own cross-profile filter; the default that works on all supported versions</string>
+    <string name="resume_method_crossprofile">Cross-profile app start</string>
+    <string name="resume_method_crossprofile_hint">Public system API; available since Android 9</string>
+    <string name="resume_method_launcher">Launcher start of an invisible activity</string>
+    <string name="resume_method_launcher_hint">The same start a launcher uses; no launcher role needed</string>
+    <string name="resume_method_realapp">Launcher start of a work app</string>
+    <string name="resume_method_realapp_hint">Like tapping a work app; that app opens on success</string>
+    <string name="resume_method_appinfo">App info screen</string>
+    <string name="resume_method_appinfo_hint">Works everywhere; opens the system App Info screen after resuming</string>
     <string name="work_bridge_unavailable">The work profile is not reachable right now. Please try again.</string>
     <string name="work_profile_unreachable_title">Work profile is not reachable</string>
     <string name="work_profile_unreachable_text">A work profile exists, but Capsule cannot reach it. It may be managed by another app, or Capsule was removed from it. The profile can be removed under Settings → Accounts and backup → Work.</string>

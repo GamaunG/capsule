@@ -59,7 +59,6 @@
     <string name="fragment_profile_main">Hoofd</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Bevroren] %s</string>
-    <string name="batch_operation">Batchbewerking</string>
     <string name="clone_to_work_profile">Kloon naar Capsule (Werkprofiel)</string>
     <string name="clone_to_main_profile">Kloon naar Hoofdprofiel</string>
     <string name="uninstall_app">Verwijderen</string>

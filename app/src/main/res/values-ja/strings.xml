@@ -13,7 +13,6 @@
     <string name="fragment_profile_main">メイン</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[凍結中%s]</string>
-    <string name="batch_operation">一括処理</string>
     <string name="clone_to_main_profile">標準プロファイルに複製</string>
     <string name="uninstall_app">アンインストール</string>
     <string name="freeze_app">凍結</string>

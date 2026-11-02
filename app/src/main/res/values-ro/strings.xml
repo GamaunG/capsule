@@ -60,7 +60,6 @@
     <string name="miui_cannot_clone">Clonarea aplicațiilor non-sistem pe un alt profil nu este momentan posibilă pe MIUI. Vă rugăm să clonați magazinul de aplicații al sistemului (de ex. <b> Magazin Play </b>) în celălalt profil și apoi instalați aplicații de acolo.</string>
     <string name="continue_anyway">Continua oricum</string>
     <string name="finish_provision_desc">Felicitări! Sunteți la un click distanță de finalizarea configurării Capsule.</string>
-    <string name="batch_operation">Operatiune in grup(lot)</string>
     <string name="create_unfreeze_shortcut">Creați Dezgheata și/sau Pornire comandă rapidă</string>
     <string name="setup_wizard_permissions_text">În mod implicit, Capsule nu va cere nicio permisiune individuală. Cu toate acestea, odată ce continuați cu procesul de configurare, Capsule va încerca să configureze un profil de lucru și, prin urmare, va deveni <b>managerul de profil</b> al profilului respectiv.
 \n

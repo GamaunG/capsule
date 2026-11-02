@@ -24,7 +24,6 @@
     <string name="settings_dont_freeze_foreground">跳過前臺應用</string>
     <string name="settings_cross_profile_file_chooser_desc">打開以後，您將可以且僅可以從系統的 Documents UI (啓動器上的名稱爲 文件 或 下載) 或支持 Documents UI 的 APP 中 瀏覽 / 查看 / 選擇 / 複製 Capsule 內的文件到主用戶，反之亦然。這不會影響對文件系統的隔離。即使是支持 Documents UI 的 App 也只能臨時獲取您選擇的文件的訪問權限。</string>
     <string name="settings_dont_freeze_foreground_desc">在您鎖屏的時候，不要凍結前臺應用 (鎖屏時仍有可見窗口的應用)。這主要用於音樂播放器等 App，但您將需要在使用完成後手動使用 \"批量凍結\" 快捷方式凍結它們。</string>
-    <string name="batch_operation">批量操作</string>
     <string name="clone_to_work_profile">克隆到 Capsule (工作用戶)</string>
     <string name="unsupported_launcher">無法在您的啓動器上添加快捷方式，請聯繫開發者。</string>
     <string name="device_admin_desc">App 隔離服務</string>

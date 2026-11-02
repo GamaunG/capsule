@@ -139,6 +139,9 @@ object Utility {
 
         addFilter(DummyActivity.START_SERVICE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
         addFilter(DummyActivity.TRY_START_SERVICE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
+        // The resume start targets the invisible proxy activity instead of
+        // this trampoline, but crosses the boundary the same way.
+        addFilter(DummyActivity.RESUME_PROFILE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
         addFilter(DummyActivity.UNFREEZE_AND_LAUNCH, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
         addFilter(DummyActivity.FREEZE_ALL_IN_LIST, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
         // Used by FreezeService inside the profile.

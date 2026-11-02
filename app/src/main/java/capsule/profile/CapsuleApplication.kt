@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.UserManager
 import capsule.profile.services.CapsuleService
 import capsule.profile.services.FileShuttleService
 import capsule.profile.util.LocalStorageManager
@@ -15,6 +16,12 @@ class CapsuleApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (!getSystemService(UserManager::class.java).isUserUnlocked) {
+            // Direct boot: only the invisible resume activities can run and
+            // they need none of the profile storage; never touch locked
+            // credential-encrypted files from here.
+            return
+        }
         LocalStorageManager.initialize(this)
         SettingsManager.initialize(this)
     }

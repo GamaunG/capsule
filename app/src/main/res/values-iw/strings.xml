@@ -36,7 +36,6 @@
     <string name="fragment_profile_main">ראשי</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[מוקפא] %s</string>
-    <string name="batch_operation">תפעול אצווה</string>
     <string name="clone_to_work_profile">שיכפול ל-Capsule (פרופיל עבודה)</string>
     <string name="clone_to_main_profile">שיכפול לפרופיל ראשי</string>
     <string name="uninstall_app">הסר התקנה</string>

@@ -45,7 +45,6 @@
     <string name="fragment_profile_main">Utama</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Bekukan] %s</string>
-    <string name="batch_operation">Kelompok operasi</string>
     <string name="clone_to_work_profile">Salin ke Capsule (Profil Kerja)</string>
     <string name="clone_to_main_profile">Salin ke Profil Utama</string>
     <string name="uninstall_app">Copot</string>

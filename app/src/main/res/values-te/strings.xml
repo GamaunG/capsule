@@ -54,7 +54,6 @@
 \nమీరైతే \"తదుపరి\"పై క్లిక్ చేసి బయటకు వెళ్ళండి.</string>
     <string name="miui_cannot_clone">MIUIలో మరో ప్రొఫైలుకు నాన్-సిస్టమ్ యాప్‌లను క్లోన్ చేయడం ప్రస్తుతం సాధ్యం కాదు. దయచేసి మీ సిస్టమ్ యొక్క యాప్ స్టోర్ (ఉదాహరణకు, <b>ప్లే స్టోర్</b>)ని ఇతర ప్రొఫైలుకు క్లోన్ చేసి, అక్కడ నుండి యాప్‌లను ఇన్‌స్టాల్ చేయండి.</string>
     <string name="service_title">షెల్టర్ సేవ</string>
-    <string name="batch_operation">బ్యాచ్ ఆపరేషన్</string>
     <string name="unfreeze_and_launch">అన్‌ఫ్రీజ్ చేసి ప్రారంభించండి</string>
     <string name="settings_services">సేవలు</string>
     <string name="settings_auto_freeze_service">ఆటో ఫ్రిజ్ సేవ</string>

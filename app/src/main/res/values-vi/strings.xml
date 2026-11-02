@@ -35,7 +35,6 @@
     <string name="fragment_profile_main">Chính</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Đã đóng băng] %s</string>
-    <string name="batch_operation">Hoạt động hàng loạt</string>
     <string name="clone_to_work_profile">Nhân bản vào Capsule (Hồ sơ công việc)</string>
     <string name="clone_to_main_profile">Nhân bản vào Hồ sơ chính</string>
     <string name="uninstall_app">Gỡ cài đặt</string>

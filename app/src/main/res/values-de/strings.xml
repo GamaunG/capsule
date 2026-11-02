@@ -13,7 +13,6 @@
     <string name="fragment_profile_main">Persönlich</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Eingefrostet] %s</string>
-    <string name="batch_operation">Stapelverabeitung</string>
     <string name="clone_to_work_profile">Klone zu Capsule (Arbeits-Profil)</string>
     <string name="clone_to_main_profile">Klone zum persönlichen Profil</string>
     <string name="uninstall_app">Deinstallieren</string>

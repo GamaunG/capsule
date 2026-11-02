@@ -813,6 +813,7 @@ class DummyActivity : ComponentActivity() {
         const val FINALIZE_PROVISION = "capsule.profile.action.FINALIZE_PROVISION"
         const val START_SERVICE = "capsule.profile.action.START_SERVICE"
         const val TRY_START_SERVICE = "capsule.profile.action.TRY_START_SERVICE"
+        const val RESUME_PROFILE = "capsule.profile.action.RESUME_PROFILE"
         const val INSTALL_PACKAGE = "capsule.profile.action.INSTALL_PACKAGE"
         const val UNINSTALL_PACKAGE = "capsule.profile.action.UNINSTALL_PACKAGE"
         const val UNFREEZE_AND_LAUNCH = "capsule.profile.action.UNFREEZE_AND_LAUNCH"

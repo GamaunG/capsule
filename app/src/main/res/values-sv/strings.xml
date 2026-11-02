@@ -35,7 +35,6 @@
 \nKlicka på \"Nästa\" så ger vi dig mer information om Capsule och guidar dig genom installationsprocessen.
 \n
 \nVi föreslår att du läser igenom alla följande sidor noggrant.</string>
-    <string name="batch_operation">Batch operation</string>
     <string name="clone_to_main_profile">Klona till Primär Profil</string>
     <string name="uninstall_app">Avinstallera</string>
     <string name="freeze_app">Frysa</string>

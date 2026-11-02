@@ -6,7 +6,6 @@ import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
@@ -73,7 +71,7 @@ import capsule.profile.util.ApplicationInfoWrapper
 import capsule.profile.util.CapsuleLog
 import capsule.profile.util.Utility
 
-/** One profile's app list with pull-to-refresh, search and multi-select. */
+/** One profile's app list with pull-to-refresh and search. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListPage(
@@ -87,7 +85,6 @@ fun AppListPage(
     var sheetApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
     var miuiCloneApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
     var restrictionsApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
-    var batchShortcutSheet by remember { mutableStateOf(false) }
 
     // A sheet must not linger for an app that left the list, e.g. one that
     // was uninstalled from the App Info screen opened from the sheet itself.
@@ -100,99 +97,74 @@ fun AppListPage(
         }
     }
 
-    Column(modifier.fillMaxSize()) {
-        if (state.selectionMode) {
-            SelectionBar(
-                count = state.selected.size,
-                onClose = { state.exitSelectionMode() },
-                onConfirm = { batchShortcutSheet = true },
-            )
-        }
-
-        PullToRefreshBox(
-            isRefreshing = state.refreshing,
-            onRefresh = { state.refresh() },
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            when {
-                state.loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        LinearProgressIndicator(Modifier.fillMaxWidth(0.5f))
-                    }
+    PullToRefreshBox(
+        isRefreshing = state.refreshing,
+        onRefresh = { state.refresh() },
+        modifier = modifier.fillMaxSize(),
+    ) {
+        when {
+            state.loading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth(0.5f))
                 }
+            }
 
-                state.displayedApps.isEmpty() -> {
-                    EmptyListState()
-                }
+            state.displayedApps.isEmpty() -> {
+                EmptyListState()
+            }
 
-                else -> {
-                    val searching = state.searchQuery.isNotBlank()
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                    ) {
-                        if (searching) {
-                            // Search results keep the score order, no sections.
-                            items(state.displayedApps, key = { it.packageName }) { app ->
-                                AppListItem(
-                                    app = app,
-                                    state = state,
-                                    inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
-                                    dimmed = state.fromCache,
-                                    onClick = { onListClick(state, app) { sheetApp = it } },
-                                    onLongClick = {
-                                        if (state.isRemote && !state.selectionMode) {
-                                            state.enterSelectionMode(app)
-                                        }
-                                    },
-                                )
+            else -> {
+                val searching = state.searchQuery.isNotBlank()
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                ) {
+                    if (searching) {
+                        // Search results keep the score order, no sections.
+                        items(state.displayedApps, key = { it.packageName }) { app ->
+                            AppListItem(
+                                app = app,
+                                state = state,
+                                inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
+                                dimmed = state.fromCache,
+                                onClick = { sheetApp = app },
+                            )
+                        }
+                    } else {
+                        // The service sorts user apps before preinstalled
+                        // ones; the sections below keep that order.
+                        val userApps = state.displayedApps.filter { !it.isSystem() }
+                        val systemApps = state.displayedApps.filter { it.isSystem() }
+                        if (userApps.isNotEmpty()) {
+                            item(key = "header_user") {
+                                ListSectionHeader(stringResource(R.string.list_section_user_apps))
                             }
-                        } else {
-                            // The service sorts user apps before preinstalled
-                            // ones; the sections below keep that order.
-                            val userApps = state.displayedApps.filter { !it.isSystem() }
-                            val systemApps = state.displayedApps.filter { it.isSystem() }
-                            if (userApps.isNotEmpty()) {
-                                item(key = "header_user") {
-                                    ListSectionHeader(stringResource(R.string.list_section_user_apps))
+                        }
+                        items(userApps, key = { it.packageName }) { app ->
+                            AppListItem(
+                                app = app,
+                                state = state,
+                                inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
+                                dimmed = state.fromCache,
+                                onClick = { sheetApp = app },
+                            )
+                        }
+                        if (systemApps.isNotEmpty()) {
+                            item(key = "header_system") {
+                                Column {
+                                    Spacer(Modifier.height(8.dp))
+                                    ListSectionHeader(stringResource(R.string.list_section_system_apps))
                                 }
                             }
-                            items(userApps, key = { it.packageName }) { app ->
-                                AppListItem(
-                                    app = app,
-                                    state = state,
-                                    inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
-                                    dimmed = state.fromCache,
-                                    onClick = { onListClick(state, app) { sheetApp = it } },
-                                    onLongClick = {
-                                        if (state.isRemote && !state.selectionMode) {
-                                            state.enterSelectionMode(app)
-                                        }
-                                    },
-                                )
-                            }
-                            if (systemApps.isNotEmpty()) {
-                                item(key = "header_system") {
-                                    Column {
-                                        Spacer(Modifier.height(8.dp))
-                                        ListSectionHeader(stringResource(R.string.list_section_system_apps))
-                                    }
-                                }
-                            }
-                            items(systemApps, key = { it.packageName }) { app ->
-                                AppListItem(
-                                    app = app,
-                                    state = state,
-                                    inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
-                                    dimmed = state.fromCache,
-                                    onClick = { onListClick(state, app) { sheetApp = it } },
-                                    onLongClick = {
-                                        if (state.isRemote && !state.selectionMode) {
-                                            state.enterSelectionMode(app)
-                                        }
-                                    },
-                                )
-                            }
+                        }
+                        items(systemApps, key = { it.packageName }) { app ->
+                            AppListItem(
+                                app = app,
+                                state = state,
+                                inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
+                                dimmed = state.fromCache,
+                                onClick = { sheetApp = app },
+                            )
                         }
                     }
                 }
@@ -277,28 +249,6 @@ fun AppListPage(
             onDismiss = { restrictionsApp = null },
         )
     }
-
-    if (batchShortcutSheet) {
-        AppDialog(
-            onDismiss = { batchShortcutSheet = false },
-            title = stringResource(R.string.batch_operation),
-            message = stringResource(R.string.create_unfreeze_shortcut),
-            dismiss = DialogButton(text = stringResource(R.string.cancel)),
-            confirm =
-                DialogButton(
-                    text = stringResource(R.string.ok),
-                    onClick = {
-                        val list = state.selectedApps()
-                        if (list.isNotEmpty()) {
-                            // The shortcut launches the first app after unfreezing all others.
-                            addUnfreezeShortcut(context, state, list.first(), list)
-                        }
-                        state.exitSelectionMode()
-                        batchShortcutSheet = false
-                    },
-                ),
-        )
-    }
 }
 
 @Composable
@@ -321,15 +271,6 @@ private fun EmptyListState() {
     }
 }
 
-/** Shared click handler for list items: selection mode toggles, taps open the sheet. */
-private fun onListClick(
-    state: AppListState,
-    app: ApplicationInfoWrapper,
-    openSheet: (ApplicationInfoWrapper) -> Unit,
-) {
-    if (state.selectionMode) state.toggleSelected(app) else openSheet(app)
-}
-
 @Composable
 private fun ListSectionHeader(title: String) {
     Text(
@@ -341,7 +282,6 @@ private fun ListSectionHeader(title: String) {
     )
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun AppListItem(
     app: ApplicationInfoWrapper,
@@ -349,17 +289,8 @@ private fun AppListItem(
     inOtherProfile: Boolean,
     dimmed: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
 ) {
     LaunchedEffect(app.packageName) { state.loadIcon(app) }
-
-    val selected = app.packageName in state.selected
-    val container =
-        if (selected) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            Color.Transparent
-        }
 
     Row(
         modifier =
@@ -367,11 +298,9 @@ private fun AppListItem(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 2.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(container)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick,
-                ).padding(10.dp)
+                .background(Color.Transparent)
+                .clickable(onClick = onClick)
+                .padding(10.dp)
                 // Stale snapshots from the disk cache stay visible but dimmed
                 // until the fresh list arrives.
                 .let { if (dimmed) it.alpha(0.5f) else it },
@@ -673,61 +602,6 @@ private fun SheetAction(
                 onCheckedChange = null,
                 enabled = enabled,
             )
-        }
-    }
-}
-
-/** Multi-select bar shown while selecting apps in the work profile. */
-@Composable
-fun SelectionBar(
-    count: Int,
-    onClose: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(20.dp),
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.batch_selected_count, count),
-                style = MaterialTheme.typography.titleMedium,
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-            )
-            Surface(
-                shape = RoundedCornerShape(100.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                onClick = onClose,
-            ) {
-                Text(
-                    stringResource(R.string.cancel),
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                shape = RoundedCornerShape(100.dp),
-                color = MaterialTheme.colorScheme.primary,
-                onClick = onConfirm,
-            ) {
-                Text(
-                    stringResource(R.string.create_unfreeze_shortcut),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                )
-            }
         }
     }
 }

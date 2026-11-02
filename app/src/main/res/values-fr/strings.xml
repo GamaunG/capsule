@@ -10,7 +10,6 @@
     <string name="service_auto_freeze_title">Gel automatique en attente</string>
     <string name="service_auto_freeze_desc">Capsule va geler automatiquement les applications chargées depuis \"Dégeler &amp; Lancer\" sur le prochain verrouillage d\'écran.</string>
     <string name="app_installing">Installation...</string>
-    <string name="batch_operation">Opération par lots</string>
     <string name="clone_to_work_profile">Cloner vers Capsule (Profil Professionnel)</string>
     <string name="uninstall_app">Désinstaller</string>
     <string name="freeze_all_shortcut">Geler</string>

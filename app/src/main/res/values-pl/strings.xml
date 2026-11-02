@@ -14,7 +14,6 @@
     <string name="list_item_disabled">[Zamrożone] %s</string>
     <string name="unfreeze_and_launch">Odmróź i uruchom</string>
     <string name="notifications_important">Capsule - ważne</string>
-    <string name="batch_operation">Masowa operacja</string>
     <string name="clone_to_main_profile">Sklonuj do profilu głównego</string>
     <string name="uninstall_app">Odinstaluj</string>
     <string name="freeze_app">Zamróź</string>

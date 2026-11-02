@@ -40,7 +40,6 @@
     <string name="search">Поиск</string>
     <string name="service_auto_freeze_title">Ожидание автозаморозки</string>
     <string name="service_auto_freeze_now">Заморозить</string>
-    <string name="batch_operation">Выбрать несколько</string>
     <string name="show_all">Все приложения</string>
     <string name="settings_cross_profile_file_chooser">Перенос файлов</string>
     <string name="documents_ui">Открыть проводник</string>
@@ -49,6 +48,7 @@
     <string name="settings_auto_freeze_service_desc">При блокировке экрана автоматически замораживать приложения, запущенные с помощью ярлыка \"Разморозить и запустить\".</string>
     <string name="settings_auto_freeze_delay">Задержка автозаморозки</string>
     <string name="settings_services">Службы</string>
+    <string name="settings_unfreeze_method">Способ включения</string>
     <string name="continue_anyway">Всё равно продолжить</string>
     <string name="notifications_important">Capsule: важное</string>
     <string name="finish_provision_desc">Поздравляем! Вы в одном шаге от завершения настройки Capsule.</string>
@@ -118,6 +118,19 @@
     <string name="work_profile_paused_title">Рабочий профиль приостановлен</string>
     <string name="work_profile_paused_text">Профиль остаётся изолированным, и внутри него ничего не запускается, пока он не будет включён обратно.</string>
     <string name="work_profile_resume">Включить</string>
+    <string name="resume_method_title">Способ включения</string>
+    <string name="resume_method_hint">Выберите, как кнопка «Включить» будет включать рабочий профиль. Системный запрос подтверждения останется в любом случае; каждый шаг записывается в диагностический журнал.</string>
+    <string name="resume_method_failed">Не удалось выполнить способ включения. Попробуйте другой в настройках.</string>
+    <string name="resume_method_forward">Пересланный интент</string>
+    <string name="resume_method_forward_hint">Через собственный межпрофильный фильтр Capsule; вариант по умолчанию, работает на всех поддерживаемых версиях</string>
+    <string name="resume_method_crossprofile">Межпрофильный запуск</string>
+    <string name="resume_method_crossprofile_hint">Публичный системный API; доступен с Android 9</string>
+    <string name="resume_method_launcher">Запуск невидимой активности</string>
+    <string name="resume_method_launcher_hint">Тот же запуск, что делает лаунчер; роль лаунчера не нужна</string>
+    <string name="resume_method_realapp">Запуск приложения из профиля</string>
+    <string name="resume_method_realapp_hint">Как нажатие на приложение в лаунчере; при успехе оно откроется</string>
+    <string name="resume_method_appinfo">Экран «О приложении»</string>
+    <string name="resume_method_appinfo_hint">Работает везде; после включения открывается экран настроек</string>
     <string name="work_profile_unreachable_title">Рабочий профиль недоступен</string>
     <string name="work_profile_unreachable_text">Рабочий профиль существует, но Capsule не может с ним связаться. Возможно, им управляет другое приложение, или Capsule был из него удалён. Профиль можно удалить в Настройках → Аккаунты и синхронизация → Рабочий профиль.</string>
     <string name="work_profile_open_settings">Открыть настройки</string>

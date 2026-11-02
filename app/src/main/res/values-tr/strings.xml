@@ -42,7 +42,6 @@
     <string name="freeze_all_success">\"Otomatik Dondur\" listesindeki tüm uygulamalar başarıyla donduruldu.</string>
     <string name="launch_app_fail">%s uygulaması grafiksel arayüze sahip olmadığı için açılamadı.</string>
     <string name="install_app_to_profile">İş profiline APK dosyası kurun</string>
-    <string name="batch_operation">Çoklu İşlem</string>
     <string name="install_app_to_profile_success">Uygulama iş profiline yüklendi.</string>
     <string name="finish_provision_title">Capsule kurulumunu tamamlamak için buraya tıklayın</string>
     <string name="settings_interaction">Etkileşim</string>

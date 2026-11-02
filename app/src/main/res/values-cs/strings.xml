@@ -45,7 +45,6 @@
     <string name="show_all_warning">Manipulace se skrytými aplikacemi může způsobit pády a všechny druhy neočekávaného chování. Nicméně, tato funkce může být užitečná, pokud výrobcem upravená ROM nenabízí všechny systémové aplikace v pracovním profilu ve výchozím stavu. Pokračujete sami na sebe.</string>
     <string name="settings_cross_profile_file_chooser_desc">Pokud je povoleno, budete moci prohlížet / zobrazovat / vybírat / kopírovat mezi Capsuleem a hlavním profilem a naopak, POUZE skrze rozhraní Dokumentů (nazýváno Soubory nebo dokumenty ve vašem spouštěči) nebo aplikace s podporou rozhraní Dokumentů (získají pouze dočasný přístup k souborům v rozhraní Dokumentů), stále při zachování izolace souborového systému.</string>
     <string name="settings_bug_report">Hlášení chyb / Sledování problémů</string>
-    <string name="batch_operation">Hromadná akce</string>
     <string name="clone_to_main_profile">Naklonovat do hlavního profilu</string>
     <string name="clone_to_work_profile">Naklonovat do Capsuleu (Pracovního profilu)</string>
     <string name="freeze_app">Zmrazit</string>

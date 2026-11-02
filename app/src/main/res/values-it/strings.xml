@@ -55,7 +55,6 @@
     <string name="settings_cross_profile_file_chooser_desc">Quando attivo, potrai sfogliare / vedere / selezionare / copiare i file in Capsule dal profilo principale e viceversa, SOLO tramite l\'interfaccia dei documenti (chiamata File o Documenti nel tuo launcher) o tramite le app con il supporto all\'interfaccia dei documenti (ottengono accesso solo temporaneo ai file che scegli), mantenendo al contempo l\'isolamento del filesystem.</string>
     <string name="list_item_disabled">[Congelata] %s</string>
     <string name="uninstall_fail_system_app">Non è possibile disinstallare le app di sistema in un profilo di cui Capsule non ha controllo.</string>
-    <string name="batch_operation">Operazione in massa</string>
     <string name="create_unfreeze_shortcut">Crea una scorciatoia di scongelamento e/o avvio</string>
     <string name="create_freeze_all_shortcut">Crea una scorciatoia di congelamento in massa</string>
     <string name="install_app_to_profile">Installa l\'APK in Capsule</string>

@@ -62,13 +62,38 @@
 
         <!-- Invisible target for resuming the paused work profile: the
              launch is intercepted by the system unpause dialog, and on
-             confirmation this activity starts and finishes silently. -->
+             confirmation this activity starts and finishes silently.
+             Direct-boot-aware so it stays resolvable while the paused
+             profile is locked, which is exactly when it is needed. -->
         <activity android:name=".ui.UnfreezeProxyActivity"
             android:theme="@android:style/Theme.NoDisplay"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:directBootAware="true"
             android:permission="capsule.profile.permission.INTERNAL_PROFILE_IPC"
-            android:exported="true" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="capsule.profile.action.RESUME_PROFILE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Second invisible target, with a launcher category: LauncherApps
+             and CrossProfileApps starts require a MAIN/LAUNCHER component,
+             so this twin gives those entry points a valid target inside the
+             paused profile. Adds a second Capsule icon to the work profile
+             app drawer. -->
+        <activity android:name=".ui.UnfreezeLauncherActivity"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <!-- Wraps intents that cross the profile boundary. Only cross-profile
              Activity intents are supported by the system. -->

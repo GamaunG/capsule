@@ -4,7 +4,6 @@
     <string name="uninstall_app">Απεγκατάσταση</string>
     <string name="unfreeze_app">Ξεπάγωσε</string>
     <string name="launch">Εκκίνηση</string>
-    <string name="batch_operation">Ομαδική εκτέλεση</string>
     <string name="unfreeze_and_launch">Ξεπάγωσε και τρέξε</string>
     <string name="allow_cross_profile_widgets">Επίτρεψε γραφικά στοιχεία (widgets) στο Κύριο Προφίλ</string>
     <string name="search">Αναζήτηση</string>

@@ -22,6 +22,10 @@ object LocalStorageManager {
     const val PREF_BLOCK_CONTACTS_SEARCHING = "block_contacts_searching"
     const val PREF_PAYMENT_STUB = "payment_stub"
 
+    // Id of the resume method the Resume button uses. Main profile only:
+    // the resume entry points all run from the main-profile UI.
+    const val PREF_RESUME_METHOD = "resume_method"
+
     // Apps exempt from the post-shortcut auto-freeze (opt-out list; freezing
     // after an "Unfreeze & Launch" shortcut is the default). Main profile only.
     const val PREF_SHORTCUT_FREEZE_EXEMPT = "shortcut_freeze_exempt"
@@ -37,6 +41,9 @@ object LocalStorageManager {
     private lateinit var prefs: SharedPreferences
 
     fun initialize(context: Context) {
+        // Idempotent: a direct-boot process may initialize again once the
+        // user is unlocked.
+        if (::prefs.isInitialized) return
         prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
     }
 

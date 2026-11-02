@@ -36,7 +36,6 @@
     <string name="miui_cannot_clone">استنساخ تطبيقات غير تابعة للنظام إلى ملف شخصي آخر غير مدعوم حاليًّا على MIUI. الرجاء استنساخ متجر تطبيقات النظام (مثل <b>متجر جوجل بلاي</b>) في الملف الشخصي الآخر ثم تثبيت التطبيقات من هناك.</string>
     <string name="service_auto_freeze_title">التجميد التلقائي معلق</string>
     <string name="service_auto_freeze_desc">سيقوم العازل بتجميد التطبيقات التي تم إطلاقها من \"إلغاء التجميد و الإطلاق\" في حدث قفل الشاشة التالي تلقائيًا.</string>
-    <string name="batch_operation">عملية على دفعة</string>
     <string name="install_app_to_profile">تثبيت APK في العازل</string>
     <string name="install_app_to_profile_success">انتهى تثبيت التطبيق في ملف العمل.</string>
     <string name="settings_interaction">التفاعل</string>

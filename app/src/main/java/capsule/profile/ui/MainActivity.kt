@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -90,6 +91,7 @@ import capsule.profile.ui.icons.home
 import capsule.profile.ui.icons.info
 import capsule.profile.ui.icons.lock
 import capsule.profile.ui.icons.lock_clock
+import capsule.profile.ui.icons.lock_open
 import capsule.profile.ui.icons.more_vert
 import capsule.profile.ui.icons.search
 import capsule.profile.ui.icons.settings
@@ -277,6 +279,9 @@ class MainActivity : ComponentActivity() {
     // The quiet-mode resume watcher: waits for the user to answer the system
     // "Unpause work apps?" dialog and then continues the bind chain.
     private var resumeWatchJob: Job? = null
+
+    // The unfreeze-method dialog opened from Settings.
+    private var resumeMethodDialogOpen by mutableStateOf(false)
 
     // Safety net for a lost main service connection: re-attempts the bind a
     // bounded number of times if onServiceConnected never arrives.
@@ -912,7 +917,7 @@ class MainActivity : ComponentActivity() {
 
     // ==== Menu actions ====
 
-    /** Resumes the paused work profile, then re-runs the bind chain. */
+    /** Resumes the paused work profile through the configured method. */
     fun resumeWorkProfile() {
         val user =
             Utility.getPausedWorkProfileHandle(this)
@@ -923,58 +928,45 @@ class MainActivity : ComponentActivity() {
                     return
                 }
         if (resumeWatchJob?.isActive == true) return
-        CapsuleLog.i("Triggering the system resume dialog for the work profile")
-        launchSystemResumeDialog()
-        startResumeWatcher()
+        val method = ResumeMethod.fromId(SettingsManager.getResumeMethodId())
+        CapsuleLog.i("Resume requested with the configured method=${method.id}")
+        runResumeMethod(method)
     }
 
     /**
-     * Starts our own invisible activity inside the paused profile: the
-     * system replaces such starts with its unpause confirmation, which lifts
-     * quiet mode when accepted — the same path launcher work tabs use, but
-     * opening nothing at all once the profile is running. The system app
-     * details screen is the fallback if that start is refused.
+     * Runs a [ResumeMethod]; when it was dispatched, watches for the user
+     * to answer the system dialog and logs the outcome.
      */
-    private fun launchSystemResumeDialog() {
-        val user = Utility.getWorkProfileUserHandle(this) ?: return
-        val launcherApps = getSystemService(LauncherApps::class.java)
-        try {
-            launcherApps.startMainActivity(
-                ComponentName(this, UnfreezeProxyActivity::class.java),
-                user,
-                null,
-                null,
-            )
-        } catch (e: Exception) {
-            CapsuleLog.w("The invisible resume start failed; falling back to app details", e)
-            try {
-                launcherApps.startAppDetailsActivity(
-                    ComponentName(this, MainActivity::class.java),
-                    user,
-                    null,
-                    null,
-                )
-            } catch (e2: Exception) {
-                CapsuleLog.w("The app details start into the paused profile failed", e2)
-            }
+    fun runResumeMethod(method: ResumeMethod) {
+        if (resumeWatchJob?.isActive == true) return
+        val dispatched = method.run(this)
+        if (!dispatched) {
+            CapsuleLog.w("RESUME TEST method=${method.id} result=API_FAILED")
+            showListMessage(R.string.resume_method_failed, null)
+            return
         }
+        CapsuleLog.i("RESUME TEST method=${method.id} dispatched; waiting for the profile")
+        startResumeWatcher(method)
     }
 
     /**
      * Waits for the user to answer the system resume dialog, then continues
-     * the bind chain once the profile has finished booting.
+     * the bind chain once the profile has finished booting. Every outcome is
+     * logged with the method id so the next system log identifies the path
+     * that works on this device.
      */
-    private fun startResumeWatcher() {
+    private fun startResumeWatcher(method: ResumeMethod) {
         if (resumeWatchJob?.isActive == true) return
         resumeWatchJob =
             refreshScope.launch {
+                val started = SystemClock.elapsedRealtime()
                 val manager = getSystemService(UserManager::class.java)
                 val user = Utility.getWorkProfileUserHandle(this@MainActivity) ?: return@launch
                 // The dialog belongs to the user; allow a slow answer. Any
                 // outcome must end in either a bound list or the banner.
                 val unpaused =
                     withContext(Dispatchers.IO) {
-                        repeat(60) {
+                        repeat(90) {
                             if (!runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(true)) {
                                 return@withContext true
                             }
@@ -982,31 +974,36 @@ class MainActivity : ComponentActivity() {
                         }
                         runCatching { !manager.isQuietModeEnabled(user) }.getOrDefault(false)
                     }
+                val waited = SystemClock.elapsedRealtime() - started
+                if (!unpaused) {
+                    withContext(Dispatchers.Main) {
+                        resumeWatchJob = null
+                    }
+                    CapsuleLog.w("RESUME TEST method=${method.id} result=NOT_RESUMED after $waited ms")
+                    return@launch
+                }
+                CapsuleLog.i("RESUME TEST method=${method.id} quiet mode lifted after $waited ms")
                 // Leaving quiet mode boots the profile user asynchronously:
                 // cross-profile resolution keeps failing for a moment, and a
                 // probe fired into that window dead-ends on the "not
                 // reachable" banner. Wait for the profile to resolve first.
-                if (unpaused) {
-                    withContext(Dispatchers.IO) {
-                        repeat(40) {
-                            if (Utility.resolvesInOtherProfile(this@MainActivity)) {
-                                return@withContext
-                            }
-                            delay(500)
+                withContext(Dispatchers.IO) {
+                    repeat(40) {
+                        if (Utility.resolvesInOtherProfile(this@MainActivity)) {
+                            return@withContext
                         }
+                        delay(500)
                     }
                 }
                 withContext(Dispatchers.Main) {
                     resumeWatchJob = null
-                    if (unpaused) {
-                        CapsuleLog.i("The work profile is running again; continuing the bind chain")
-                        lastWorkProbeAt = 0
-                        workPaused.value = false
-                        workUnreachable.value = false
-                        connectWorkService()
-                    } else if (Utility.isWorkProfilePaused(this@MainActivity)) {
-                        CapsuleLog.w("The work profile did not resume; keeping the paused banner")
-                    }
+                    CapsuleLog.i(
+                        "RESUME TEST method=${method.id} result=RESUMED; continuing the bind chain",
+                    )
+                    lastWorkProbeAt = 0
+                    workPaused.value = false
+                    workUnreachable.value = false
+                    connectWorkService()
                 }
             }
     }
@@ -1722,6 +1719,85 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Selection dialog for the unfreeze method: tapping a row persists the
+     * choice, and the Resume button runs it from then on. Unsupported
+     * methods are disabled instead of hidden, so the full set stays
+     * discoverable on every device.
+     */
+    @Composable
+    private fun ResumeMethodPickerDialog(
+        selected: ResumeMethod,
+        onSelect: (ResumeMethod) -> Unit,
+        onDismiss: () -> Unit,
+    ) {
+        AppDialog(
+            onDismiss = onDismiss,
+            title = stringResource(R.string.resume_method_title),
+            dismiss = DialogButton(text = stringResource(R.string.cancel), onClick = onDismiss),
+            content = {
+                Column {
+                    Text(
+                        text = stringResource(R.string.resume_method_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                    ) {
+                        ResumeMethod.entries.forEach { method ->
+                            val supported = method.isSupported()
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                onClick = { onSelect(method) },
+                                enabled = supported,
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(method.labelRes),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color =
+                                                if (supported) {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                                },
+                                        )
+                                        Text(
+                                            text = stringResource(method.hintRes),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    if (method == selected) {
+                                        Icon(
+                                            imageVector = done,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        )
+    }
+
     /** Thin notice shown under the app bar while the profile is unusable. */
     @Composable
     private fun WorkProfileBanner(
@@ -1968,6 +2044,9 @@ class MainActivity : ComponentActivity() {
         var skipForeground by remember { mutableStateOf(manager.getSkipForegroundEnabled()) }
         var delay by remember { mutableStateOf(manager.getAutoFreezeDelay()) }
         var delayDialog by remember { mutableStateOf(false) }
+        var resumeMethod by remember {
+            mutableStateOf(ResumeMethod.fromId(SettingsManager.getResumeMethodId()))
+        }
 
         val fileChooserSupported =
             remember {
@@ -2086,6 +2165,12 @@ class MainActivity : ComponentActivity() {
 
                 SectionHeader(stringResource(R.string.settings_services), icon = ac_unit)
                 GroupedCard {
+                    SettingActionRow(
+                        title = stringResource(R.string.settings_unfreeze_method),
+                        desc = stringResource(resumeMethod.labelRes),
+                        icon = lock_open,
+                        onClick = { resumeMethodDialogOpen = true },
+                    )
                     SettingToggleRow(
                         title = stringResource(R.string.settings_auto_freeze_service),
                         desc = stringResource(R.string.settings_auto_freeze_service_desc),
@@ -2175,6 +2260,17 @@ class MainActivity : ComponentActivity() {
                     delay = it * 60
                     delayDialog = false
                 },
+            )
+        }
+
+        if (resumeMethodDialogOpen) {
+            ResumeMethodPickerDialog(
+                selected = resumeMethod,
+                onSelect = {
+                    SettingsManager.setResumeMethodId(it.id)
+                    resumeMethod = it
+                },
+                onDismiss = { resumeMethodDialogOpen = false },
             )
         }
 

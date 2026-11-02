@@ -39,7 +39,6 @@
     <string name="fragment_profile_main">Главни</string>
     <string name="fragment_profile_work">Шелтер</string>
     <string name="list_item_disabled">[Замрзнуто] %s</string>
-    <string name="batch_operation">Групна операција</string>
     <string name="clone_to_work_profile">Клонирај у Шелтер (радни профил)</string>
     <string name="clone_to_main_profile">Клонирај у главни профил</string>
     <string name="uninstall_app">Деинсталирај</string>

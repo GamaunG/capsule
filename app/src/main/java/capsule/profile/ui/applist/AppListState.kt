@@ -61,9 +61,6 @@ class AppListState(
     var fromCache by mutableStateOf(false)
         private set
     var searchQuery by mutableStateOf("")
-    var selectionMode by mutableStateOf(false)
-        private set
-    val selected = mutableStateSetOf<String>()
     val iconCache = mutableStateMapOf<String, Bitmap>()
     val crossProfileWidgetProviders = mutableStateSetOf<String>()
     val crossProfilePackages = mutableStateSetOf<String>()
@@ -134,7 +131,6 @@ class AppListState(
         }
 
     fun refresh() {
-        if (selectionMode) return
         // Replace an in-flight refresh instead of dropping the new one, so a
         // quick succession of actions never leaves stale data behind.
         refreshingJob?.cancel()
@@ -257,28 +253,6 @@ class AppListState(
             // Keep the placeholder icon.
         }
     }
-
-    fun toggleSelected(app: ApplicationInfoWrapper) {
-        if (app.packageName in selected) {
-            selected.remove(app.packageName)
-            if (selected.isEmpty()) exitSelectionMode()
-        } else {
-            selected.add(app.packageName)
-        }
-    }
-
-    fun enterSelectionMode(app: ApplicationInfoWrapper) {
-        selectionMode = true
-        selected.clear()
-        selected.add(app.packageName)
-    }
-
-    fun exitSelectionMode() {
-        selectionMode = false
-        selected.clear()
-    }
-
-    fun selectedApps(): List<ApplicationInfoWrapper> = apps.filter { it.packageName in selected }
 
     fun isAutoFreeze(app: ApplicationInfoWrapper): Boolean = app.packageName in autoFreezePackages
 

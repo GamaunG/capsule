@@ -23,6 +23,9 @@ object SettingsManager {
     private val storage: LocalStorageManager get() = LocalStorageManager
 
     fun initialize(context: Context) {
+        // Idempotent: a direct-boot process may initialize again once the
+        // user is unlocked.
+        if (::appContext.isInitialized) return
         appContext = context.applicationContext
     }
 
@@ -230,6 +233,17 @@ object SettingsManager {
         storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
 
     fun getPaymentStubEnabled(): Boolean = storage.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB)
+
+    /**
+     * Id of the resume method the Resume button runs. Stored on the main
+     * profile only: every resume entry point runs from the main-profile UI,
+     * so no cross-profile mirror is needed.
+     */
+    fun setResumeMethodId(id: String) {
+        storage.setString(LocalStorageManager.PREF_RESUME_METHOD, id)
+    }
+
+    fun getResumeMethodId(): String? = storage.getString(LocalStorageManager.PREF_RESUME_METHOD)
 
     fun setPaymentStubEnabled(enabled: Boolean) {
         storage.setBoolean(LocalStorageManager.PREF_PAYMENT_STUB, enabled)
