@@ -324,6 +324,29 @@ class CapsuleService : Service() {
                 check(isProfileOwner) { "Application restrictions require profile owner access" }
                 policyManager.setApplicationRestrictions(adminComponent, packageName, restrictions)
             }
+
+            override fun installCaCert(cert: ByteArray): Boolean {
+                // The system parses PEM and DER inputs; only the profile owner
+                // may add CAs to the profile trust store.
+                check(isProfileOwner) { "Certificate management requires profile owner access" }
+                CapsuleLog.i("Installing a CA certificate into the profile trust store")
+                return policyManager.installCaCert(adminComponent, cert)
+            }
+
+            override fun getInstalledCaCerts(): List<Bundle> {
+                check(isProfileOwner) { "Certificate management requires profile owner access" }
+                // AIDL cannot carry lists of arrays: one Bundle per certificate.
+                return policyManager.getInstalledCaCerts(adminComponent).map { cert ->
+                    Bundle().apply { putByteArray("cert", cert) }
+                }
+            }
+
+            override fun uninstallCaCert(cert: ByteArray): Boolean {
+                check(isProfileOwner) { "Certificate management requires profile owner access" }
+                CapsuleLog.i("Removing a CA certificate from the profile trust store")
+                policyManager.uninstallCaCert(adminComponent, cert)
+                return true
+            }
         }
 
     override fun onCreate() {

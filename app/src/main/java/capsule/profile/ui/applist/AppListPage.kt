@@ -62,7 +62,6 @@ import capsule.profile.ui.icons.apps
 import capsule.profile.ui.icons.bolt
 import capsule.profile.ui.icons.delete
 import capsule.profile.ui.icons.done
-import capsule.profile.ui.icons.lock
 import capsule.profile.ui.icons.lock_open
 import capsule.profile.ui.icons.play_arrow
 import capsule.profile.ui.icons.shield_person
@@ -87,10 +86,6 @@ fun AppListPage(
     var miuiCloneApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
     var restrictionsApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
     var batchShortcutSheet by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (state.apps.isEmpty()) state.refresh()
-    }
 
     Column(modifier.fillMaxSize()) {
         if (state.selectionMode) {
@@ -224,6 +219,7 @@ fun AppListPage(
                 launchApp(context, app)
             },
             onAutoFreeze = { state.toggleAutoFreeze(app) },
+            onShortcutAutoFreeze = { state.toggleShortcutAutoFreeze(app) },
             onWidgets = { state.setCrossProfileWidgetProvider(app, it) },
             onCrossProfile = { state.setCrossProfileInteraction(app, it) },
             onRestrictions = {
@@ -410,8 +406,9 @@ private fun AppListItem(
             )
         }
         if (app.isHidden()) {
+            // Frozen apps share the snowflake with the other freeze actions.
             Icon(
-                imageVector = lock,
+                imageVector = ac_unit,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline,
             )
@@ -441,6 +438,7 @@ private fun AppActionsSheet(
     onUnfreeze: () -> Unit,
     onLaunch: () -> Unit,
     onAutoFreeze: () -> Unit,
+    onShortcutAutoFreeze: () -> Unit,
     onWidgets: (Boolean) -> Unit,
     onCrossProfile: (Boolean) -> Unit,
     onRestrictions: () -> Unit,
@@ -510,6 +508,12 @@ private fun AppActionsSheet(
                     label = stringResource(R.string.auto_freeze),
                     checked = state.isAutoFreeze(app),
                     onClick = onAutoFreeze,
+                )
+                SheetAction(
+                    icon = ac_unit,
+                    label = stringResource(R.string.auto_freeze_shortcut),
+                    checked = state.isShortcutAutoFreeze(app),
+                    onClick = onShortcutAutoFreeze,
                 )
                 SheetAction(icon = bolt, label = stringResource(R.string.create_unfreeze_shortcut), onClick = onShortcut)
             } else {
@@ -741,5 +745,7 @@ fun addUnfreezeShortcut(
             android.graphics.drawable.Icon
                 .createWithResource(context, R.mipmap.ic_launcher)
         }
-    Utility.createLauncherShortcut(context, launchIntent, icon, id, app.labelOrDefault)
+    if (!Utility.createLauncherShortcut(context, launchIntent, icon, id, app.labelOrDefault)) {
+        state.showMessage(R.string.unsupported_launcher, null)
+    }
 }

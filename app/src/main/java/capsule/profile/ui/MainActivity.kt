@@ -7,13 +7,11 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.drawable.Icon
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
 import android.os.UserManager
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResult
@@ -41,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -111,10 +110,6 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var storage: LocalStorageManager
 
-    // Flag to avoid double-killing our services while restarting.
-    private var restarting = false
-
-    // True while the auth-healing retry of the work profile probe is running.
     private var probingWorkService = false
 
     private var serviceMain: ICapsuleService? = null
@@ -124,6 +119,10 @@ class MainActivity : ComponentActivity() {
     private val mainListState = mutableStateOf<AppListState?>(null)
     private val workListState = mutableStateOf<AppListState?>(null)
     private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // Shared with the Compose scaffold so non-composable code (install
+    // callbacks, freeze results) can show in-app messages.
+    private val snackbarHostState = SnackbarHostState()
 
     var showAll = false
         private set
@@ -135,10 +134,16 @@ class MainActivity : ComponentActivity() {
     // with the work profile still binding or paused.
     private val mainServiceReady = mutableStateOf(false)
 
-    // Work-profile status for the in-app banner: paused (Work Mode off) or
-    // present but unreachable (managed by another app / Capsule removed).
+    // Work-profile status for the in-app banner: paused (Work Mode off),
+    // present but unreachable (managed by another app / Capsule removed), or
+    // absent entirely (nothing provisioned; the work tab offers setup).
     private val workPaused = mutableStateOf(false)
     private val workUnreachable = mutableStateOf(false)
+    private val workAbsent = mutableStateOf(false)
+
+    // Notified when the work-profile service process dies, e.g. when the user
+    // switches Work Mode off from quick settings while the app is open.
+    private var workDeathRecipient: IBinder.DeathRecipient? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -160,38 +165,43 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun init() {
-        if (storage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP) &&
-            !Utility.isWorkProfileAvailable(this)
-        ) {
+        val settingUp = storage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP)
+        val hasSetup = storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)
+        val profileExists = Utility.getWorkProfileUserHandle(this) != null
+
+        if (settingUp && !profileExists) {
             // Provisioning finished, but the app inside the profile has never
             // been brought up (pre-Oreo notification flow).
             resumeSetup.launch(null)
-        } else if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)) {
-            if (Utility.isWorkProfileAvailable(this)) {
-                // Reinstalling the app must not trigger a new provisioning when
-                // our own work profile is still alive; just adopt it again.
-                CapsuleLog.i("Existing work profile found; skipping the setup wizard")
-                // The old HMAC pairing died with the previous installation's
-                // data; re-bootstrap it with the next signed intent.
-                AuthenticationUtility.reset()
-                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, true)
-                storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
-                SettingsManager.applyAll()
-                bindServices()
-            } else {
-                startSetup.launch(null)
-            }
-        } else {
-            SettingsManager.applyAll()
-            bindServices()
+            return
         }
+
+        // Resolution-based checks are unreliable while a profile is paused,
+        // so "does a profile exist" is answered from the user list only.
+        workAbsent.value = !hasSetup && !profileExists
+        if (!hasSetup && !profileExists) {
+            // First run with no profile at all.
+            startSetup.launch(null)
+        }
+
+        // Bind the main service in every case so the app stays usable behind
+        // the wizard; the work side is decided once the bind completes.
+        SettingsManager.applyAll()
+        bindServices()
     }
 
     private fun setupWizardCb(result: Boolean) {
         if (result) {
             init()
         } else {
-            finish()
+            // Canceled: stay in the app. The work tab offers the setup again
+            // instead of kicking the user out to the launcher.
+            workAbsent.value = Utility.getWorkProfileUserHandle(this) == null
+            if (serviceMain == null && !mainServiceReady.value) {
+                bindServices()
+            } else if (!workAbsent.value) {
+                connectWorkService()
+            }
         }
     }
 
@@ -205,15 +215,53 @@ class MainActivity : ComponentActivity() {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     serviceMain = ICapsuleService.Stub.asInterface(service)
                     mainServiceReady.value = true
-                    tryStartWorkService()
+                    connectWorkService()
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
-                    // Handled by the restart check in onResume.
+                    // The main service lives in this process; if it is gone,
+                    // the resume path rebinds.
                 }
             },
             false,
         )
+    }
+
+    /**
+     * Decides between probing the work profile and showing a banner. Called
+     * when the main service binds, on resume and after Resume was pressed.
+     */
+    private fun connectWorkService() {
+        if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP) &&
+            Utility.getWorkProfileUserHandle(this) == null
+        ) {
+            // Nothing was ever provisioned: the work tab offers the setup.
+            workAbsent.value = true
+            workPaused.value = false
+            workUnreachable.value = false
+            serviceWork = null
+            servicesReady.value = false
+            return
+        }
+        workAbsent.value = false
+        if (Utility.isWorkProfilePaused(this)) {
+            // Quiet mode: nothing can cross the boundary, and launching the
+            // bridge would only bounce straight back.
+            CapsuleLog.i("Work profile is paused; showing the paused banner")
+            showWorkBanner(paused = true)
+            return
+        }
+        workPaused.value = false
+        workUnreachable.value = false
+        tryStartWorkService()
+    }
+
+    private fun showWorkBanner(paused: Boolean) {
+        serviceWork = null
+        servicesReady.value = false
+        workListState.value = null
+        workPaused.value = paused
+        workUnreachable.value = !paused
     }
 
     private fun tryStartWorkService() {
@@ -223,21 +271,49 @@ class MainActivity : ComponentActivity() {
         try {
             Utility.transferIntentToProfile(this, intent)
         } catch (e: IllegalStateException) {
-            // No work profile exists at all: offer the setup wizard instead
-            // of dead-ending with a toast.
-            CapsuleLog.w("No work profile found; starting the setup wizard")
-            storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
-            storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
-            startSetup.launch(null)
+            // Resolution failed. Resolution is unreliable while a profile is
+            // paused or still booting, so classify by the user list instead.
+            onWorkServiceUnreachable()
             return
         }
-        // onResume may fire while a probe launched from init() is still in
-        // flight, or after the system silently blocked a background launch:
-        // rate-limit so each session binds the work service exactly once.
+        // onResume may fire while a probe launched from connectWorkService is
+        // still in flight, or after the system silently blocked a background
+        // launch: rate-limit so each session binds the work service exactly once.
         val now = SystemClock.elapsedRealtime()
         if (now - lastWorkProbeAt < WORK_PROBE_RATE_LIMIT_MS) return
         lastWorkProbeAt = now
         tryStartWorkService.launch(intent)
+    }
+
+    /** The bridge could not be resolved or the probe was refused: classify. */
+    private fun onWorkServiceUnreachable() {
+        when {
+            Utility.isWorkProfilePaused(this) -> {
+                CapsuleLog.i("Work profile is paused; showing the paused banner")
+                showWorkBanner(paused = true)
+            }
+
+            Utility.getWorkProfileUserHandle(this) != null -> {
+                // The profile resolves but our own instance inside it does not:
+                // another app manages it, or Capsule was removed from it.
+                CapsuleLog.w("Work profile exists but cannot be reached; showing the banner")
+                showWorkBanner(paused = false)
+            }
+
+            else -> {
+                // No other profile in this group at all, e.g. it was deleted
+                // from the system settings: offer the setup instead of exiting.
+                CapsuleLog.w("No work profile found; offering the setup")
+                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
+                storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
+                serviceWork = null
+                servicesReady.value = false
+                workListState.value = null
+                workPaused.value = false
+                workUnreachable.value = false
+                workAbsent.value = true
+            }
+        }
     }
 
     private fun tryStartWorkServiceCb(result: ActivityResult) {
@@ -248,23 +324,18 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // A paused profile (Work Mode off) silently rejects the probe; show
-        // the in-app banner instead of nagging with retries and a dead end.
+        // The profile was not accepted: either Work Mode is off, the user
+        // dismissed the system prompt, or the two sides lost their HMAC
+        // pairing (e.g. the profile-side data was cleared).
         if (Utility.isWorkProfilePaused(this)) {
             probingWorkService = false
             CapsuleLog.i("Work profile is paused; switching to the paused banner")
-            serviceWork = null
-            servicesReady.value = false
-            workPaused.value = true
-            workUnreachable.value = false
+            showWorkBanner(paused = true)
             return
         }
 
-        // The profile resolves but the probe was not accepted: either the
-        // user dismissed the enable-work-mode prompt, or the two sides lost
-        // their HMAC pairing (e.g. the profile-side data was cleared). One
-        // retry with a fresh pairing heals the latter case.
-        if (!probingWorkService && Utility.isWorkProfileAvailable(this)) {
+        // One retry with a fresh pairing heals the lost-key case.
+        if (!probingWorkService && Utility.resolvesInOtherProfile(this)) {
             CapsuleLog.w("Probe rejected; retrying once with a fresh auth pairing")
             AuthenticationUtility.reset()
             probingWorkService = true
@@ -274,28 +345,7 @@ class MainActivity : ComponentActivity() {
         }
 
         probingWorkService = false
-        val profileExists = Utility.getWorkProfileUserHandle(this) != null
-        if (profileExists) {
-            // Rejected twice without being paused: Capsule cannot reach its
-            // own instance inside the profile.
-            CapsuleLog.w("Work profile exists but cannot be reached; showing the banner")
-            serviceWork = null
-            servicesReady.value = false
-            workPaused.value = Utility.isWorkProfilePaused(this)
-            workUnreachable.value = !workPaused.value
-            return
-        }
-
-        CapsuleLog.w("Work profile probe returned ${result.resultCode}; no work profile")
-        // Pre-Q devices cannot detect quiet mode; keep the legacy hint there.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Toast.makeText(this, R.string.work_mode_disabled, Toast.LENGTH_LONG).show()
-            finish()
-            return
-        }
-        storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
-        storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
-        startSetup.launch(null)
+        onWorkServiceUnreachable()
     }
 
     private fun bindWorkService() {
@@ -322,17 +372,60 @@ class MainActivity : ComponentActivity() {
             val binder = extra!!.getBinder("service")
             serviceWork = ICapsuleService.Stub.asInterface(binder)
             CapsuleLog.i("Work profile service bound")
+            if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)) {
+                // Adopting an existing profile (e.g. after flags were reset
+                // while the profile survived): setup counts as done.
+                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, true)
+                storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
+            }
+            attachWorkDeathRecipient()
             registerStartActivityProxies()
             startKiller()
             servicesReady.value = true
         } else {
             CapsuleLog.w("Failed to bind the work profile service (result=${result.resultCode})")
-            if (Utility.isWorkProfilePaused(this)) {
-                workPaused.value = true
-            } else if (Utility.getWorkProfileUserHandle(this) != null) {
-                workUnreachable.value = true
+            onWorkServiceUnreachable()
+        }
+    }
+
+    /** Reacts to the work service process dying (Work Mode off, removal...). */
+    private fun attachWorkDeathRecipient() {
+        detachWorkDeathRecipient()
+        val recipient =
+            IBinder.DeathRecipient {
+                runOnUiThread { onWorkServiceDied() }
+            }
+        try {
+            serviceWork?.asBinder()?.linkToDeath(recipient, 0)
+            workDeathRecipient = recipient
+        } catch (e: Exception) {
+            // Already dead: handle it right away.
+            workDeathRecipient = null
+            onWorkServiceDied()
+        }
+    }
+
+    private fun detachWorkDeathRecipient() {
+        workDeathRecipient?.let {
+            try {
+                serviceWork?.asBinder()?.unlinkToDeath(it, 0)
+            } catch (e: Exception) {
+                // The binder is gone; the recipient fired or is moot.
             }
         }
+        workDeathRecipient = null
+    }
+
+    private fun onWorkServiceDied() {
+        if (serviceWork == null) return
+        CapsuleLog.w("The work profile service died")
+        detachWorkDeathRecipient()
+        serviceWork = null
+        servicesReady.value = false
+        workListState.value = null
+        // Work Mode off stops the whole profile; anything else (a crash, the
+        // profile being removed) is re-probed so a transient death heals.
+        connectWorkService()
     }
 
     private fun startKiller() {
@@ -387,30 +480,27 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (restarting) return
 
-        if (workPaused.value) {
-            // The profile may have been resumed from system UI meanwhile;
-            // re-check quietly without launching probes.
-            if (!Utility.isWorkProfilePaused(this)) {
-                workPaused.value = false
-                workUnreachable.value = false
-                lastWorkProbeAt = 0
-                tryStartWorkService()
+        if (workAbsent.value) {
+            if (Utility.getWorkProfileUserHandle(this) != null) {
+                // A profile appeared while we were away: evaluate it.
+                workAbsent.value = false
+                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, true)
+                storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
+            } else {
+                return
             }
-            return
-        }
-        if (workUnreachable.value) {
-            // Needs a decision in settings; never auto-retry from here.
-            return
         }
 
         if (!servicesReady.value) {
             // While the setup wizard owns the flow there is nothing to bind;
             // recovering here would probe for a profile that does not exist
-            // yet and dead-end with a misleading toast.
-            if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP) ||
-                storage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP)
+            // yet and dead-end with a misleading banner.
+            if (storage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP) ||
+                (
+                    !storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP) &&
+                        Utility.getWorkProfileUserHandle(this) == null
+                )
             ) {
                 return
             }
@@ -424,20 +514,17 @@ class MainActivity : ComponentActivity() {
                     bindServices()
                 }
             } else {
-                tryStartWorkService()
+                connectWorkService()
             }
             return
         }
 
         if (!servicesAlive()) {
-            // The services died (e.g. KillerService was destroyed). Restart
-            // cleanly instead of reusing dead binders.
-            doOnDestroy()
-            restarting = true
-            // Never replay an external intent that reached this exported
-            // activity; restart with a fresh launcher intent.
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+            // The services died while we were away. Recover IN PLACE: a
+            // restart via startActivity never worked here, because the
+            // singleTask launch intent is delivered to this very instance,
+            // which is about to finish - the app would simply close.
+            recoverServicesInPlace()
             return
         }
 
@@ -447,34 +534,34 @@ class MainActivity : ComponentActivity() {
         workListState.value?.refresh()
     }
 
+    /** Drops the dead binders and restarts the bind chain without restarting. */
+    private fun recoverServicesInPlace() {
+        CapsuleLog.w("The services died; recovering the bind chain in place")
+        stopService(Intent(this, KillerService::class.java))
+        detachWorkDeathRecipient()
+        serviceMain = null
+        serviceWork = null
+        mainServiceReady.value = false
+        servicesReady.value = false
+        mainListState.value = null
+        workListState.value = null
+        bindServices()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        // DO NOT kill anything while restarting or recreating for a
-        // configuration change: the new instance may already have started its
-        // own services again.
-        if (!restarting && !isChangingConfigurations) {
+        // DO NOT kill anything while recreating for a configuration change:
+        // the new instance may already have started its own services again.
+        if (!isChangingConfigurations) {
             doOnDestroy()
         }
     }
 
     private fun doOnDestroy() {
+        detachWorkDeathRecipient()
         refreshScope.cancel()
         stopService(Intent(this, KillerService::class.java))
         Utility.killCapsuleServices(serviceMain, serviceWork)
-    }
-
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (level >= TRIM_MEMORY_BACKGROUND && serviceMain != null &&
-            storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)
-        ) {
-            // We do not need to live in the background; dying takes the
-            // work-profile foreground service down with us. Never during
-            // setup: finishing here would leave the wizard alone in the task,
-            // and the system would return to the launcher instead of the app
-            // once provisioning completes.
-            finish()
-        }
     }
 
     // ==== Menu actions ====
@@ -486,85 +573,75 @@ class MainActivity : ComponentActivity() {
                 ?: run {
                     // Not (or no longer) in quiet mode: probe directly.
                     lastWorkProbeAt = 0
-                    tryStartWorkService()
+                    connectWorkService()
                     return
                 }
         refreshScope.launch {
-            // Best effort: ask the system to leave quiet mode. When it
-            // declines, the probe fallback makes it show its own
-            // user-mediated resume prompt.
+            val manager = getSystemService(UserManager::class.java)
+            // Best effort: ask the system to leave quiet mode. The request is
+            // asynchronous and the profile takes a moment to boot.
             val submitted =
                 try {
                     @Suppress("DEPRECATION")
-                    getSystemService(UserManager::class.java)
-                        .requestQuietModeEnabled(false, user)
+                    manager.requestQuietModeEnabled(false, user)
                 } catch (e: Exception) {
-                    CapsuleLog.w("requestQuietModeEnabled failed; falling back to the probe", e)
+                    CapsuleLog.w("requestQuietModeEnabled failed; probing anyway", e)
                     false
                 }
-            if (!submitted) {
-                withContext(Dispatchers.Main) {
-                    lastWorkProbeAt = 0
-                    tryStartWorkService()
-                }
-                return@launch
-            }
-            // The switch completes asynchronously; wait it out before probing.
-            val manager = getSystemService(UserManager::class.java)
-            val resumed =
+            // Wait until the profile is both unpaused and resolvable before
+            // probing. Even a timeout must not dead-end: the probe below then
+            // either binds anyway or lands back on the paused banner.
+            val ready =
                 withContext(Dispatchers.IO) {
-                    repeat(10) {
-                        if (!runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(false)) {
+                    repeat(40) {
+                        val unpaused =
+                            runCatching { manager.isQuietModeEnabled(user) }
+                                .getOrDefault(true)
+                        if (!unpaused && Utility.resolvesInOtherProfile(this@MainActivity)) {
                             return@withContext true
                         }
-                        kotlinx.coroutines.delay(500)
+                        kotlinx.coroutines.delay(250)
                     }
-                    !runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(false)
+                    false
                 }
+            CapsuleLog.i("Work profile resume wait finished (ready=$ready)")
             withContext(Dispatchers.Main) {
                 lastWorkProbeAt = 0
-                if (resumed) {
-                    workPaused.value = false
-                    workUnreachable.value = false
-                    tryStartWorkService()
-                } else {
-                    CapsuleLog.w("The work profile did not leave quiet mode in time")
-                }
+                workPaused.value = false
+                workUnreachable.value = false
+                connectWorkService()
             }
         }
     }
 
-    /** Opens the accounts screen where a leftover work profile can be removed. */
-    fun openAccountsSettings() {
-        val candidates =
-            listOf(
-                // Accounts and backup: the Work tab there lists the work profile.
-                Settings.ACTION_SYNC_SETTINGS,
-                "android.settings.USER_SETTINGS",
-                Settings.ACTION_SETTINGS,
-            )
-        for (action in candidates) {
-            try {
-                startActivity(Intent(action))
-                return
-            } catch (e: android.content.ActivityNotFoundException) {
-                // Try the next candidate screen.
-            }
+    /** Opens the system settings home screen. */
+    fun openSystemSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        } catch (e: android.content.ActivityNotFoundException) {
+            CapsuleLog.w("The settings home screen could not be opened", e)
         }
+    }
+
+    /** Offers the setup wizard again from the work tab placeholder. */
+    fun startSetupWizard() {
+        startSetup.launch(null)
     }
 
     fun freezeAll() {
         val intent = Intent(DummyActivity.PUBLIC_FREEZE_ALL)
         intent.component = ComponentName(this, DummyActivity::class.java)
+        // The freeze pass runs in the work profile; report through the
+        // snackbar here instead of its toast.
+        intent.putExtra("from_app", true)
         startActivity(intent)
-        // The freeze pass runs asynchronously in the work profile; refresh
-        // again once it has had time to finish.
         mainListState.value?.refresh()
         workListState.value?.refresh()
         refreshScope.launch {
             kotlinx.coroutines.delay(2000)
             mainListState.value?.refresh()
             workListState.value?.refresh()
+            snackbarHostState.showSnackbar(getString(R.string.freeze_all_success))
         }
     }
 
@@ -572,13 +649,19 @@ class MainActivity : ComponentActivity() {
         val launchIntent = Intent(DummyActivity.PUBLIC_FREEZE_ALL)
         launchIntent.component = ComponentName(this, DummyActivity::class.java)
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        Utility.createLauncherShortcut(
-            this,
-            launchIntent,
-            Icon.createWithResource(this, R.mipmap.ic_freeze),
-            "capsule-freeze-all",
-            getString(R.string.freeze_all_shortcut),
-        )
+        val ok =
+            Utility.createLauncherShortcut(
+                this,
+                launchIntent,
+                Icon.createWithResource(this, R.mipmap.ic_freeze),
+                "capsule-freeze-all",
+                getString(R.string.freeze_all_shortcut),
+            )
+        if (!ok) {
+            refreshScope.launch {
+                snackbarHostState.showSnackbar(getString(R.string.unsupported_launcher))
+            }
+        }
     }
 
     fun installApkToProfile() {
@@ -597,13 +680,12 @@ class MainActivity : ComponentActivity() {
                     override fun callback(result: Int) {
                         runOnUiThread {
                             // The other side closes the Fd for us.
-                            if (result == RESULT_OK) {
-                                Toast
-                                    .makeText(
-                                        this@MainActivity,
-                                        R.string.install_app_to_profile_success,
-                                        Toast.LENGTH_LONG,
-                                    ).show()
+                            if (result == android.app.Activity.RESULT_OK) {
+                                refreshScope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        getString(R.string.install_app_to_profile_success),
+                                    )
+                                }
                             }
                         }
                     }
@@ -646,12 +728,17 @@ class MainActivity : ComponentActivity() {
         var searchQuery by remember { mutableStateOf("") }
         var menuOpen by remember { mutableStateOf(false) }
         var showAllConfirm by remember { mutableStateOf(false) }
-        val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
         val searchFocus =
             remember {
                 androidx.compose.ui.focus
                     .FocusRequester()
             }
+
+        // The "already installed in the other profile" badges come from a
+        // persisted snapshot so they render instantly; the fresh lists then
+        // replace the sets silently.
+        var workPackages by remember { mutableStateOf(loadCachedPackages(isWork = true)) }
+        var mainPackages by remember { mutableStateOf(loadCachedPackages(isWork = false)) }
 
         val mainState =
             remember {
@@ -692,15 +779,30 @@ class MainActivity : ComponentActivity() {
                 null
             }
 
-        // Both lists load in parallel as soon as the UI exists, so switching
-        // tabs never shows a loading state that was avoidable.
-        LaunchedEffect(mainState, workState) {
-            mainState.refresh()
-            workState?.refresh()
+        // One effect per list: keys changing on one side must not re-run the
+        // other side's refresh.
+        LaunchedEffect(mainState) { mainState.refresh() }
+        LaunchedEffect(workState) { workState?.refresh() }
+
+        LaunchedEffect(mainState.apps) {
+            val set = mainState.apps.map { it.packageName }.toSet()
+            if (set != mainPackages) {
+                mainPackages = set
+                persistCachedPackages(isWork = false, set)
+            }
+        }
+        LaunchedEffect(workState?.apps) {
+            val apps = workState?.apps ?: return@LaunchedEffect
+            val set = apps.map { it.packageName }.toSet()
+            if (set != workPackages) {
+                workPackages = set
+                persistCachedPackages(isWork = true, set)
+            }
         }
 
         val paused = workPaused.value
         val unreachable = workUnreachable.value
+        val absent = workAbsent.value
 
         // Focus the field as soon as the search bar appears.
         LaunchedEffect(searchActive) {
@@ -766,7 +868,7 @@ class MainActivity : ComponentActivity() {
                         WorkProfileBanner(
                             paused = paused,
                             onResume = { resumeWorkProfile() },
-                            onOpenSettings = { openAccountsSettings() },
+                            onOpenSettings = { openSystemSettings() },
                         )
                     }
                 }
@@ -800,7 +902,7 @@ class MainActivity : ComponentActivity() {
                     0 -> {
                         AppListPage(
                             mainState,
-                            otherPackages = { workState?.apps?.map { it.packageName }?.toSet() ?: emptySet() },
+                            otherPackages = { workPackages },
                             cloneAvailable = workState != null,
                         )
                     }
@@ -809,14 +911,17 @@ class MainActivity : ComponentActivity() {
                         if (state != null) {
                             AppListPage(
                                 state,
-                                otherPackages = { mainState.apps.map { it.packageName }.toSet() },
+                                otherPackages = { mainPackages },
                                 cloneAvailable = true,
                             )
                         } else {
                             WorkProfilePlaceholder(
                                 paused = paused,
+                                unreachable = unreachable,
+                                absent = absent,
                                 onResume = { resumeWorkProfile() },
-                                onOpenSettings = { openAccountsSettings() },
+                                onOpenSettings = { openSystemSettings() },
+                                onStartSetup = { startSetupWizard() },
                             )
                         }
                     }
@@ -930,8 +1035,11 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun WorkProfilePlaceholder(
         paused: Boolean,
+        unreachable: Boolean,
+        absent: Boolean,
         onResume: () -> Unit,
         onOpenSettings: () -> Unit,
+        onStartSetup: () -> Unit,
     ) {
         Box(
             Modifier.fillMaxSize(),
@@ -939,7 +1047,12 @@ class MainActivity : ComponentActivity() {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    imageVector = if (paused) lock else settings,
+                    imageVector =
+                        when {
+                            absent -> add
+                            paused -> lock
+                            else -> settings
+                        },
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outlineVariant,
                     modifier = Modifier.size(56.dp),
@@ -948,10 +1061,10 @@ class MainActivity : ComponentActivity() {
                 Text(
                     text =
                         stringResource(
-                            if (paused) {
-                                R.string.work_profile_paused_title
-                            } else {
-                                R.string.work_profile_unreachable_title
+                            when {
+                                absent -> R.string.work_profile_absent_title
+                                paused -> R.string.work_profile_paused_title
+                                else -> R.string.work_profile_unreachable_title
                             },
                         ),
                     style = MaterialTheme.typography.titleMedium,
@@ -960,10 +1073,10 @@ class MainActivity : ComponentActivity() {
                 Text(
                     text =
                         stringResource(
-                            if (paused) {
-                                R.string.work_profile_paused_text
-                            } else {
-                                R.string.work_profile_unreachable_text
+                            when {
+                                absent -> R.string.work_profile_absent_text
+                                paused -> R.string.work_profile_paused_text
+                                else -> R.string.work_profile_unreachable_text
                             },
                         ),
                     style = MaterialTheme.typography.bodyMedium,
@@ -975,15 +1088,20 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.foundation.shape
                             .RoundedCornerShape(100.dp),
                     color = MaterialTheme.colorScheme.primary,
-                    onClick = if (paused) onResume else onOpenSettings,
+                    onClick =
+                        when {
+                            absent -> onStartSetup
+                            paused -> onResume
+                            else -> onOpenSettings
+                        },
                 ) {
                     Text(
                         text =
                             stringResource(
-                                if (paused) {
-                                    R.string.work_profile_resume
-                                } else {
-                                    R.string.work_profile_open_settings
+                                when {
+                                    absent -> R.string.work_profile_start_setup
+                                    paused -> R.string.work_profile_resume
+                                    else -> R.string.work_profile_open_settings
                                 },
                             ),
                         style = MaterialTheme.typography.labelLarge,
@@ -1064,6 +1182,31 @@ class MainActivity : ComponentActivity() {
                 },
             )
         }
+    }
+
+    /** Loads the persisted package set of one profile for instant badges. */
+    private fun loadCachedPackages(isWork: Boolean): Set<String> =
+        LocalStorageManager
+            .getStringList(
+                if (isWork) {
+                    LocalStorageManager.PREF_CACHED_WORK_PACKAGES
+                } else {
+                    LocalStorageManager.PREF_CACHED_MAIN_PACKAGES
+                },
+            ).toSet()
+
+    private fun persistCachedPackages(
+        isWork: Boolean,
+        packages: Set<String>,
+    ) {
+        LocalStorageManager.setStringList(
+            if (isWork) {
+                LocalStorageManager.PREF_CACHED_WORK_PACKAGES
+            } else {
+                LocalStorageManager.PREF_CACHED_MAIN_PACKAGES
+            },
+            packages.toList(),
+        )
     }
 
     companion object {

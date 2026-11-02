@@ -25,7 +25,6 @@ import android.os.UserHandle
 import android.os.UserManager
 import android.provider.MediaStore
 import android.provider.Settings
-import android.widget.Toast
 import androidx.annotation.RequiresApi
 import capsule.profile.R
 import capsule.profile.receivers.CapsuleDeviceAdminReceiver
@@ -295,7 +294,8 @@ object Utility {
         LocalStorageManager.setStringList(pref, list)
     }
 
-    /** Creates a launcher shortcut, with a legacy broadcast fallback before Oreo. */
+    /** Creates a launcher shortcut, with a legacy broadcast fallback before Oreo.
+     * Returns false when the launcher does not support pinning. */
     @Suppress("DEPRECATION")
     fun createLauncherShortcut(
         context: Context,
@@ -303,7 +303,7 @@ object Utility {
         icon: Icon,
         id: String,
         label: String,
-    ) {
+    ): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val shortcutManager = context.getSystemService(ShortcutManager::class.java)
             if (shortcutManager.isRequestPinShortcutSupported) {
@@ -326,9 +326,9 @@ object Utility {
                             PendingIntent.FLAG_IMMUTABLE,
                         ).intentSender,
                 )
-            } else {
-                Toast.makeText(context, R.string.unsupported_launcher, Toast.LENGTH_LONG).show()
+                return true
             }
+            return false
         } else {
             val shortcutIntent = Intent("com.android.launcher.action.INSTALL_SHORTCUT")
             shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, launchIntent)
@@ -337,7 +337,7 @@ object Utility {
                 shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_ICON, drawableToBitmap(drawable))
             }
             context.sendBroadcast(shortcutIntent)
-            Toast.makeText(context, R.string.shortcut_create_success, Toast.LENGTH_SHORT).show()
+            return true
         }
     }
 
@@ -398,6 +398,11 @@ object Utility {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
+    // Creating a notification channel is an IPC round-trip; the channel
+    // persists per id, so each one only needs to be registered once.
+    @Volatile
+    private var createdChannels = mutableSetOf<String>()
+
     /** Cross-version compatible notification builder with silent channels. */
     @Suppress("DEPRECATION")
     fun buildNotification(
@@ -411,27 +416,29 @@ object Utility {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val id = if (important) NOTIFICATION_CHANNEL_IMPORTANT else NOTIFICATION_CHANNEL_ID
             val nm = context.getSystemService(NotificationManager::class.java)
-            val channel =
-                NotificationChannel(
-                    id,
-                    if (important) {
-                        context.getString(R.string.notifications_important)
-                    } else {
-                        context.getString(R.string.app_name)
-                    },
-                    if (important) {
-                        NotificationManager.IMPORTANCE_HIGH
-                    } else {
-                        NotificationManager.IMPORTANCE_MIN
-                    },
-                )
-            if (important) {
-                channel.enableVibration(true)
-            } else {
-                channel.enableVibration(false)
-                channel.enableLights(false)
+            if (createdChannels.add(id)) {
+                val channel =
+                    NotificationChannel(
+                        id,
+                        if (important) {
+                            context.getString(R.string.notifications_important)
+                        } else {
+                            context.getString(R.string.app_name)
+                        },
+                        if (important) {
+                            NotificationManager.IMPORTANCE_HIGH
+                        } else {
+                            NotificationManager.IMPORTANCE_MIN
+                        },
+                    )
+                if (important) {
+                    channel.enableVibration(true)
+                } else {
+                    channel.enableVibration(false)
+                    channel.enableLights(false)
+                }
+                nm.createNotificationChannel(channel)
             }
-            nm.createNotificationChannel(channel)
             return Notification
                 .Builder(context, id)
                 .setTicker(ticker)

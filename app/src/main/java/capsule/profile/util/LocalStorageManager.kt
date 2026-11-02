@@ -22,6 +22,16 @@ object LocalStorageManager {
     const val PREF_BLOCK_CONTACTS_SEARCHING = "block_contacts_searching"
     const val PREF_PAYMENT_STUB = "payment_stub"
 
+    // Apps exempt from the post-shortcut auto-freeze (opt-out list; freezing
+    // after an "Unfreeze & Launch" shortcut is the default). Main profile only.
+    const val PREF_SHORTCUT_FREEZE_EXEMPT = "shortcut_freeze_exempt"
+
+    // Snapshots of the package sets installed in each profile, so the
+    // "already installed in the other profile" badges render instantly on
+    // startup instead of waiting for the slower cross-profile bind.
+    const val PREF_CACHED_MAIN_PACKAGES = "cached_main_packages"
+    const val PREF_CACHED_WORK_PACKAGES = "cached_work_packages"
+
     private const val LIST_DIVIDER = ","
 
     private lateinit var prefs: SharedPreferences

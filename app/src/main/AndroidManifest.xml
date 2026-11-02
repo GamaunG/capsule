@@ -88,6 +88,7 @@
                 <action android:name="capsule.profile.action.START_FILE_SHUTTLE_2" />
                 <action android:name="capsule.profile.action.SYNCHRONIZE_PREFERENCE" />
                 <action android:name="capsule.profile.action.PACKAGEINSTALLER_CALLBACK" />
+                <action android:name="capsule.profile.action.OPEN_SETTINGS_IN_PROFILE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

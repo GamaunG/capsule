@@ -95,6 +95,18 @@ class DummyActivity : ComponentActivity() {
             }
         }
 
+    // Opens a permission screen for THIS profile's instance and reports back.
+    // Used from the main profile settings screen so the work-profile instance
+    // can be granted special-access permissions without the user digging for
+    // the work-profile settings manually.
+    private val profileSettingsLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            setResult(Activity.RESULT_OK)
+            finish()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -188,6 +200,9 @@ class DummyActivity : ComponentActivity() {
             }
             START_FILE_SHUTTLE, START_FILE_SHUTTLE_2 -> {
                 actionStartFileShuttle()
+            }
+            OPEN_SETTINGS_IN_PROFILE -> {
+                actionOpenSettingsInProfile()
             }
             SYNCHRONIZE_PREFERENCE -> {
                 actionSynchronizePreference()
@@ -524,24 +539,18 @@ class DummyActivity : ComponentActivity() {
             val intent = Intent(UNFREEZE_AND_LAUNCH)
             Utility.transferIntentToProfile(this, intent)
             intent.putExtra("packageName", packageName)
+            // Shortcut launches freeze on lock by default, independent of the
+            // per-app Auto Freeze list (which covers normal launches only);
+            // the exemption list is the per-app opt-out.
             intent.putExtra(
                 "shouldFreeze",
-                SettingsManager.getAutoFreezeServiceEnabled() &&
-                    LocalStorageManager.stringListContains(
-                        LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-                        packageName,
-                    ),
+                shouldFreezeAfterShortcut(packageName),
             )
             if (srcIntent.hasExtra("linkedPackages")) {
                 val packages = srcIntent.getStringExtra("linkedPackages")!!.split(",").toTypedArray()
                 val packagesShouldFreeze = BooleanArray(packages.size)
                 for (i in packages.indices) {
-                    packagesShouldFreeze[i] =
-                        SettingsManager.getAutoFreezeServiceEnabled() &&
-                        LocalStorageManager.stringListContains(
-                            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-                            packages[i],
-                        )
+                    packagesShouldFreeze[i] = shouldFreezeAfterShortcut(packages[i])
                 }
                 intent.putExtra("linkedPackages", packages)
                 intent.putExtra("linkedPackagesShouldFreeze", packagesShouldFreeze)
@@ -600,15 +609,28 @@ class DummyActivity : ComponentActivity() {
         startService(Intent(this, FreezeService::class.java))
     }
 
+    /** Freezes on lock after a shortcut launch unless exempted per app. */
+    private fun shouldFreezeAfterShortcut(packageName: String): Boolean =
+        SettingsManager.getAutoFreezeServiceEnabled() &&
+            !LocalStorageManager.stringListContains(
+                LocalStorageManager.PREF_SHORTCUT_FREEZE_EXEMPT,
+                packageName,
+            )
+
     private fun actionPublicFreezeAll() {
         if (!isProfileOwner) {
             // Load the full auto-freeze list and forward the batch request.
+            // Launcher shortcuts run outside the app UI and keep the toast;
+            // requests made from inside the app report back through its
+            // snackbar instead, so the work side stays silent for them.
+            val fromApp = intent.getBooleanExtra("from_app", false)
             val intent = Intent(FREEZE_ALL_IN_LIST)
             Utility.transferIntentToProfile(this, intent)
             val list =
                 LocalStorageManager
                     .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
             intent.putExtra("list", list.toTypedArray())
+            intent.putExtra("notify", !fromApp)
             startActivity(intent)
             finish()
         } else {
@@ -628,7 +650,9 @@ class DummyActivity : ComponentActivity() {
                 )
             }
             stopService(Intent(this, FreezeService::class.java))
-            Toast.makeText(this, R.string.freeze_all_success, Toast.LENGTH_SHORT).show()
+            if (intent.getBooleanExtra("notify", true)) {
+                Toast.makeText(this, R.string.freeze_all_success, Toast.LENGTH_SHORT).show()
+            }
         }
         finish()
     }
@@ -675,6 +699,27 @@ class DummyActivity : ComponentActivity() {
                 }
             },
         )
+    }
+
+    /**
+     * Opens a system settings screen for this profile's own instance. Called
+     * from the other profile's settings UI for special-access permissions
+     * that must be granted separately per profile.
+     */
+    private fun actionOpenSettingsInProfile() {
+        val action =
+            intent.getStringExtra("settings_action") ?: run {
+                finish()
+                return
+            }
+        val settings = Intent(action, Uri.fromParts("package", packageName, null))
+        try {
+            profileSettingsLauncher.launch(settings)
+        } catch (e: android.content.ActivityNotFoundException) {
+            // The screen does not exist on this ROM: nothing to grant.
+            setResult(Activity.RESULT_CANCELED)
+            finish()
+        }
     }
 
     private fun actionSynchronizePreference() {
@@ -726,6 +771,10 @@ class DummyActivity : ComponentActivity() {
         const val START_FILE_SHUTTLE_2 = "capsule.profile.action.START_FILE_SHUTTLE_2"
         const val SYNCHRONIZE_PREFERENCE = "capsule.profile.action.SYNCHRONIZE_PREFERENCE"
         const val PACKAGEINSTALLER_CALLBACK = "capsule.profile.action.PACKAGEINSTALLER_CALLBACK"
+
+        // Opens a settings screen for this profile's own instance; the action
+        // to open travels in the "settings_action" string extra.
+        const val OPEN_SETTINGS_IN_PROFILE = "capsule.profile.action.OPEN_SETTINGS_IN_PROFILE"
 
         // Callable from the other side without a signature (user-visible).
         private val ACTIONS_ALLOWED_WITHOUT_SIGNATURE =

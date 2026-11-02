@@ -246,24 +246,12 @@ class SetupWizardActivity : ComponentActivity() {
             false
         }
 
-    /** Opens the screen where a leftover work profile can be removed. */
+    /** Opens the system settings home screen. */
     private fun openSettings() {
-        val candidates =
-            listOf(
-                // Settings > Accounts and backup: the Work tab there lists
-                // the work profile and offers removing it.
-                Settings.ACTION_SYNC_SETTINGS,
-                // Settings > System > Multiple users, on some AOSP builds.
-                "android.settings.USER_SETTINGS",
-                Settings.ACTION_SETTINGS,
-            )
-        for (action in candidates) {
-            try {
-                startActivity(Intent(action))
-                return
-            } catch (e: ActivityNotFoundException) {
-                // Try the next candidate screen.
-            }
+        try {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        } catch (e: ActivityNotFoundException) {
+            // The settings home screen always resolves; guard anyway.
         }
     }
 

@@ -17,10 +17,8 @@ import capsule.profile.ui.DummyActivity
 object SettingsManager {
     /** Cross-profile file picking directions. */
     const val PICKER_DISABLED = 0
-    const val PICKER_WORK_TO_MAIN = 1
     const val PICKER_MAIN_TO_WORK = 2
     const val PICKER_BOTH = 3
-
     private lateinit var appContext: Context
     private val storage: LocalStorageManager get() = LocalStorageManager
 
@@ -168,14 +166,6 @@ object SettingsManager {
 
     fun getCrossProfileFileChooserEnabled(): Boolean =
         storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER)
-
-    fun setCrossProfilePickerEnabled(enabled: Boolean) {
-        storage.setBoolean(LocalStorageManager.PREF_CROSS_PROFILE_PICKER, enabled)
-        syncBoolToProfile(LocalStorageManager.PREF_CROSS_PROFILE_PICKER, enabled)
-    }
-
-    fun getCrossProfilePickerEnabled(): Boolean =
-        storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_PICKER)
 
     fun setCrossProfilePickerMode(mode: Int) {
         storage.setInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, mode)

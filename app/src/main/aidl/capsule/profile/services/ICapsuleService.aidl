@@ -32,4 +32,7 @@ interface ICapsuleService {
     void setCrossProfilePackages(in List<String> packages);
     Bundle getManagedApplicationRestrictions(String packageName);
     void setManagedApplicationRestrictions(String packageName, in Bundle restrictions);
+    boolean installCaCert(in byte[] cert);
+    List<Bundle> getInstalledCaCerts();
+    boolean uninstallCaCert(in byte[] cert);
 }

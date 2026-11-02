@@ -25,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,7 +48,6 @@ fun RestrictionsEditor(
     app: ApplicationInfoWrapper,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var schema by remember { mutableStateOf<List<Bundle>?>(null) }
@@ -139,9 +137,7 @@ fun RestrictionsEditor(
                         withContext(Dispatchers.Main) {
                             values = updated
                             editingEntry = null
-                            android.widget.Toast
-                                .makeText(context, message, android.widget.Toast.LENGTH_SHORT)
-                                .show()
+                            state.showMessage(message, null)
                         }
                     }
                 },

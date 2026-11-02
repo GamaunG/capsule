@@ -40,7 +40,7 @@ class AppListState(
     val service: ICapsuleService,
     val isRemote: Boolean,
     private val scope: CoroutineScope,
-    private val onMessage: (Int, String?) -> Unit,
+    val onMessage: (Int, String?) -> Unit,
     private val onOtherService: () -> ICapsuleService?,
     private val showAllProvider: () -> Boolean,
     private val refreshPeer: () -> Unit = {},
@@ -67,6 +67,10 @@ class AppListState(
     // Mirrored in Compose state so toggles reflect immediately in open sheets.
     val autoFreezePackages = mutableStateSetOf<String>()
 
+    // Apps the user exempted from freezing after an "Unfreeze & Launch"
+    // shortcut launch; the default is to always freeze those on lock.
+    val shortcutFreezeExempt = mutableStateSetOf<String>()
+
     val displayedApps: List<ApplicationInfoWrapper>
         get() {
             val query = searchQuery.trim()
@@ -90,18 +94,19 @@ class AppListState(
         const val APP_LIST_TIMEOUT_MS = 10_000L
     }
 
-    private suspend fun awaitGetApps(): List<ApplicationInfoWrapper> {
+    private suspend fun awaitGetApps(): List<ApplicationInfoWrapper>? {
         // A service dying mid-request would hang the coroutine forever and
-        // leave the list in its loading state; bound the wait instead.
+        // leave the list in its loading state; bound the wait instead. Null
+        // marks a failed request so callers can keep the previous list.
         return try {
             withTimeout(APP_LIST_TIMEOUT_MS) { awaitGetAppsInner() }
         } catch (e: TimeoutCancellationException) {
             CapsuleLog.w("App list request timed out; the service may have died mid-call")
-            emptyList()
+            null
         }
     }
 
-    private suspend fun awaitGetAppsInner(): List<ApplicationInfoWrapper> =
+    private suspend fun awaitGetAppsInner(): List<ApplicationInfoWrapper>? =
         suspendCancellableCoroutine { cont ->
             try {
                 service.getApps(
@@ -113,7 +118,7 @@ class AppListState(
                     showAllProvider(),
                 )
             } catch (e: RemoteException) {
-                if (cont.isActive) cont.resume(emptyList())
+                if (cont.isActive) cont.resume(null)
             }
         }
 
@@ -133,13 +138,21 @@ class AppListState(
                         val cached = withContext(Dispatchers.IO) { cache.load() }
                         if (cached != null && apps.isEmpty()) {
                             withContext(Dispatchers.Main) {
-                                apps = cached
+                                apps = cached.apps
+                                iconCache.putAll(cached.icons)
                                 fromCache = true
                                 loading = false
                             }
                         }
                     }
                     val list = withContext(Dispatchers.IO) { awaitGetApps() }
+                    if (list == null) {
+                        // The service died mid-request, e.g. Work Mode was
+                        // switched off: keep the current list on screen; the
+                        // banner state is handled by the death callback.
+                        withContext(Dispatchers.Main) { refreshing = false }
+                        return@launch
+                    }
                     if (isRemote) {
                         withContext(Dispatchers.IO) {
                             loadCrossProfileListsLocked()
@@ -150,10 +163,21 @@ class AppListState(
                             )
                         }
                     }
-                    withContext(Dispatchers.IO) { cache?.save(list) }
+                    withContext(Dispatchers.IO) {
+                        // Persist the icons we already have so the next cold
+                        // start can show them before the service responds.
+                        val icons = HashMap<String, Bitmap>(iconCache.size)
+                        for (app in list) {
+                            iconCache[app.packageName]?.let { icons[app.packageName] = it }
+                        }
+                        cache?.save(list, icons)
+                    }
                     withContext(Dispatchers.Main) {
                         apps = list
-                        if (isRemote) reloadAutoFreezeList()
+                        if (isRemote) {
+                            reloadAutoFreezeList()
+                            reloadShortcutFreezeExemptions()
+                        }
                         fromCache = false
                         loading = false
                         refreshing = false
@@ -165,6 +189,9 @@ class AppListState(
                 }
             }
     }
+
+    /** Shows a snackbar through the hosting screen. */
+    fun showMessage(res: Int, arg: String? = null) = onMessage(res, arg)
 
     private fun reloadAutoFreezeList() {
         autoFreezePackages.clear()
@@ -235,6 +262,16 @@ class AppListState(
 
     fun isAutoFreeze(app: ApplicationInfoWrapper): Boolean = app.packageName in autoFreezePackages
 
+    /** True when the app still freezes on lock after a shortcut launch (default). */
+    fun isShortcutAutoFreeze(app: ApplicationInfoWrapper): Boolean = app.packageName !in shortcutFreezeExempt
+
+    private fun reloadShortcutFreezeExemptions() {
+        shortcutFreezeExempt.clear()
+        shortcutFreezeExempt.addAll(
+            LocalStorageManager.getStringList(LocalStorageManager.PREF_SHORTCUT_FREEZE_EXEMPT),
+        )
+    }
+
     fun toggleAutoFreeze(app: ApplicationInfoWrapper) {
         if (app.packageName in autoFreezePackages) {
             autoFreezePackages.remove(app.packageName)
@@ -251,6 +288,23 @@ class AppListState(
         }
         // The freeze pass runs inside the work profile and reads the list there.
         SettingsManager.syncAutoFreezeList()
+    }
+
+    /** Toggles freezing after "Unfreeze &amp; Launch" shortcut launches. */
+    fun toggleShortcutAutoFreeze(app: ApplicationInfoWrapper) {
+        if (app.packageName in shortcutFreezeExempt) {
+            shortcutFreezeExempt.remove(app.packageName)
+            LocalStorageManager.removeFromStringList(
+                LocalStorageManager.PREF_SHORTCUT_FREEZE_EXEMPT,
+                app.packageName,
+            )
+        } else {
+            shortcutFreezeExempt.add(app.packageName)
+            LocalStorageManager.appendStringList(
+                LocalStorageManager.PREF_SHORTCUT_FREEZE_EXEMPT,
+                app.packageName,
+            )
+        }
     }
 
     fun freezeApp(app: ApplicationInfoWrapper) {
