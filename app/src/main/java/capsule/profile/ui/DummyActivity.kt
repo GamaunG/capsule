@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.StrictMode
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -75,6 +76,25 @@ class DummyActivity : ComponentActivity() {
             init()
         }
 
+    // Set while the unknown-sources settings page is up, so returning from it
+    // without the permission does not loop back into the same request.
+    private var awaitingInstallPermission = false
+
+    private val installPermissionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            awaitingInstallPermission = false
+            // The user is back in the app now, so an install prompt can only
+            // ever appear on top of Capsule, never on top of Settings.
+            if (packageManager.canRequestPackageInstalls()) {
+                actionInstallPackage()
+            } else {
+                CapsuleLog.w("Install-unknown-sources was not granted; aborting the install")
+                appInstallFinished(Activity.RESULT_CANCELED)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -88,10 +108,16 @@ class DummyActivity : ComponentActivity() {
         policyManager = getSystemService(DevicePolicyManager::class.java)
         isProfileOwner = policyManager.isProfileOwnerApp(packageName)
         if (isProfileOwner) {
-            // Keep our policies in sync with the app version on every contact.
-            Utility.enforceWorkProfilePolicies(this)
-            Utility.enforceUserRestrictions(this)
-            SettingsManager.applyAll()
+            // Profile policies persist in the system; re-asserting them on
+            // every bridge contact costs a burst of DPM writes and settings
+            // broadcasts. Once per process is enough — real preference
+            // changes re-enforce explicitly.
+            if (!profilePoliciesApplied) {
+                profilePoliciesApplied = true
+                Utility.enforceWorkProfilePolicies(this)
+                Utility.enforceUserRestrictions(this)
+                SettingsManager.applyAll()
+            }
 
             synchronized(DummyActivity::class.java) {
                 // Never ask during finalization; it conflicts with the
@@ -245,8 +271,8 @@ class DummyActivity : ComponentActivity() {
         if (isProfileOwner) {
             @Suppress("DEPRECATION")
             val bundle = intent.getBundleExtra("settings_sync")
-            if (bundle != null) {
-                SettingsManager.applySyncBundle(bundle)
+            if (bundle != null && SettingsManager.applySyncBundle(bundle)) {
+                // Only meaningful when the snapshot actually diverged.
                 Utility.enforceWorkProfilePolicies(this)
             }
             // Keep the auto-freeze listener alive while there is work for it.
@@ -276,6 +302,28 @@ class DummyActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
     private fun actionInstallPackage() {
         CapsuleLog.i("Installing package: package=${intent.getStringExtra("package")} apk=${intent.getStringExtra("apk")}")
+
+        // The unknown-sources consent must exist before the installer session
+        // commits, so its prompt never pops up over the settings screen: ask
+        // first, and drive the install only after the user returns to Capsule.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            if (awaitingInstallPermission) {
+                appInstallFinished(Activity.RESULT_CANCELED)
+                return
+            }
+            awaitingInstallPermission = true
+            CapsuleLog.i("Requesting the install-unknown-sources consent before installing")
+            val settings =
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.fromParts("package", packageName, null),
+                )
+            installPermissionLauncher.launch(settings)
+            return
+        }
+
         var uri: Uri? = null
         if (intent.hasExtra("package")) {
             uri = Uri.fromParts("package", intent.getStringExtra("package"), null)
@@ -696,6 +744,12 @@ class DummyActivity : ComponentActivity() {
             )
 
         private var hasRequestedPermission = false
+
+        // Set once the profile-side policies have been asserted in this
+        // process; DPM state persists, so re-asserting per bridge contact
+        // only burns binder calls and settings broadcasts.
+        @Volatile
+        private var profilePoliciesApplied = false
 
         // Last time a same-process request was registered. Same-process means
         // sharing this memory is safe.

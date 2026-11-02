@@ -110,6 +110,12 @@ class SetupWizardActivity : ComponentActivity() {
     private fun setupProfile() {
         if (!policyManager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)) {
             wizardState = WizardStep.FAILED
+            failureReasonRes =
+                if (Utility.getWorkProfileUserHandle(this) != null) {
+                    R.string.setup_failed_reason_profile_exists
+                } else {
+                    R.string.setup_failed_reason_not_allowed
+                }
             return
         }
 
@@ -121,6 +127,7 @@ class SetupWizardActivity : ComponentActivity() {
             provisionProfile.launch(null)
         } catch (e: ActivityNotFoundException) {
             wizardState = WizardStep.FAILED
+            failureReasonRes = R.string.setup_failed_reason_not_allowed
         }
     }
 
@@ -139,6 +146,20 @@ class SetupWizardActivity : ComponentActivity() {
             wizardState = WizardStep.ACTION_REQUIRED
         } else {
             wizardState = WizardStep.FAILED
+            failureReasonRes = detectFailureReason()
+        }
+    }
+
+    /**
+     * Classifies the provisioning failure so the FAILED page can explain
+     * what actually went wrong instead of a vague dead end.
+     */
+    private fun detectFailureReason(): Int {
+        val profileUser = Utility.getWorkProfileUserHandle(this)
+        return when {
+            profileUser == null -> R.string.setup_failed_reason_aborted
+            Utility.resolvesInOtherProfile(this) -> R.string.setup_failed_reason_profile_exists
+            else -> R.string.setup_failed_reason_other_owner
         }
     }
 
@@ -226,13 +247,13 @@ class SetupWizardActivity : ComponentActivity() {
         }
 
     /** Opens the screen where a leftover work profile can be removed. */
-    private fun openAccountSettings() {
+    private fun openSettings() {
         val candidates =
             listOf(
-                // Settings > Accounts, where a work profile is removed on
-                // current Android versions.
+                // Settings > Accounts and backup: the Work tab there lists
+                // the work profile and offers removing it.
                 Settings.ACTION_SYNC_SETTINGS,
-                // Settings > System > Multiple users, used by some ROMs.
+                // Settings > System > Multiple users, on some AOSP builds.
                 "android.settings.USER_SETTINGS",
                 Settings.ACTION_SETTINGS,
             )
@@ -259,6 +280,10 @@ class SetupWizardActivity : ComponentActivity() {
     }
 
     private var wizardState by mutableStateOf(WizardStep.WELCOME)
+
+    // Optional explanation for the FAILED step; replaces a vague dead end
+    // with what the system actually told us.
+    private var failureReasonRes by mutableStateOf<Int?>(null)
 
     @Composable
     private fun WizardScreen(resume: Boolean) {
@@ -360,8 +385,9 @@ class SetupWizardActivity : ComponentActivity() {
                     WizardTextPage(
                         titleRes = R.string.setup_wizard_failed,
                         textRes = R.string.setup_wizard_failed_text,
+                        reasonRes = failureReasonRes,
                         onCopyDiagnostics = { showDiagnostics = true },
-                        onOpenAccountSettings = { openAccountSettings() },
+                        onOpenSettings = { openSettings() },
                     )
                 }
             }
@@ -402,49 +428,56 @@ class SetupWizardActivity : ComponentActivity() {
         onNext: () -> Unit,
         content: @Composable () -> Unit,
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .safeDrawingPadding()
-                    .padding(24.dp),
+        // Paint the themed background explicitly: without this the platform
+        // window background (a fixed gray) would show behind the text.
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
-            AnimatedContent(
-                targetState = wizardState,
-                transitionSpec = {
-                    if (targetState.ordinal >= initialState.ordinal) {
-                        (slideInHorizontally(tween()) { it / 4 } + fadeIn(tween())) togetherWith
-                            (slideOutHorizontally(tween()) { -it / 4 } + fadeOut(tween()))
-                    } else {
-                        (slideInHorizontally(tween()) { -it / 4 } + fadeIn(tween())) togetherWith
-                            (slideOutHorizontally(tween()) { it / 4 } + fadeOut(tween()))
-                    }
-                },
-                label = "wizard-step",
-                modifier = Modifier.weight(1f),
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding()
+                        .padding(24.dp),
             ) {
-                content()
-            }
-
-            if (wizardState == WizardStep.PLEASE_WAIT || wizardState == WizardStep.ACTION_REQUIRED) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 16.dp))
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (showBack) {
-                    WizardButton(
-                        text = stringResource(R.string.setup_wizard_back),
-                        onClick = onBack,
-                        filled = false,
-                    )
-                    Spacer(Modifier.padding(4.dp))
+                AnimatedContent(
+                    targetState = wizardState,
+                    transitionSpec = {
+                        if (targetState.ordinal >= initialState.ordinal) {
+                            (slideInHorizontally(tween()) { it / 4 } + fadeIn(tween())) togetherWith
+                                (slideOutHorizontally(tween()) { -it / 4 } + fadeOut(tween()))
+                        } else {
+                            (slideInHorizontally(tween()) { -it / 4 } + fadeIn(tween())) togetherWith
+                                (slideOutHorizontally(tween()) { it / 4 } + fadeOut(tween()))
+                        }
+                    },
+                    label = "wizard-step",
+                    modifier = Modifier.weight(1f),
+                ) {
+                    content()
                 }
-                if (showNext) {
-                    WizardButton(text = nextLabel, onClick = onNext, filled = true)
+
+                if (wizardState == WizardStep.PLEASE_WAIT || wizardState == WizardStep.ACTION_REQUIRED) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 16.dp))
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (showBack) {
+                        WizardButton(
+                            text = stringResource(R.string.setup_wizard_back),
+                            onClick = onBack,
+                            filled = false,
+                        )
+                        Spacer(Modifier.padding(4.dp))
+                    }
+                    if (showNext) {
+                        WizardButton(text = nextLabel, onClick = onNext, filled = true)
+                    }
                 }
             }
         }
@@ -482,8 +515,9 @@ class SetupWizardActivity : ComponentActivity() {
         titleRes: Int,
         textRes: Int,
         progress: Boolean = false,
+        reasonRes: Int? = null,
         onCopyDiagnostics: (() -> Unit)? = null,
-        onOpenAccountSettings: (() -> Unit)? = null,
+        onOpenSettings: (() -> Unit)? = null,
     ) {
         Column(
             modifier =
@@ -497,18 +531,27 @@ class SetupWizardActivity : ComponentActivity() {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
+            if (reasonRes != null) {
+                Text(
+                    text = stringResource(reasonRes),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
             HtmlText(
                 text = stringResource(textRes),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (onCopyDiagnostics != null || onOpenAccountSettings != null) {
+            if (onCopyDiagnostics != null || onOpenSettings != null) {
                 Spacer(Modifier.height(24.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (onOpenAccountSettings != null) {
+                    if (onOpenSettings != null) {
                         WizardActionButton(
-                            text = stringResource(R.string.setup_open_account_settings),
-                            onClick = onOpenAccountSettings,
+                            text = stringResource(R.string.setup_open_settings),
+                            onClick = onOpenSettings,
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                         )

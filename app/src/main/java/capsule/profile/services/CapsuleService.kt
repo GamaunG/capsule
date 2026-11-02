@@ -77,20 +77,43 @@ class CapsuleService : Service() {
                     val pmFlags =
                         PackageManager.MATCH_DISABLED_COMPONENTS or
                             PackageManager.MATCH_UNINSTALLED_PACKAGES
-                    val list =
-                        getInstalledApplications(pmFlags)
-                            .filter { it.packageName != packageName }
-                            .filter {
-                                val isSystem = (it.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                                val isHidden = isHidden(it.packageName)
-                                val isInstalled = (it.flags and ApplicationInfo.FLAG_INSTALLED) != 0
-                                val canLaunch = packageManagerRef.getLaunchIntentForPackage(it.packageName) != null
-                                showAll || (!isSystem && isInstalled) || isHidden || canLaunch
-                            }.map { ApplicationInfoWrapper(it).loadLabel(packageManagerRef).setHidden(isHidden(it.packageName)) }
-                            .sortedWith(
-                                compareBy<ApplicationInfoWrapper> { if (it.isHidden()) 1 else 0 }
-                                    .thenBy { it.labelOrDefault.lowercase() },
-                            )
+                    val installed = getInstalledApplications(pmFlags)
+
+                    // One resolver pass replaces a per-app launch-intent query,
+                    // which dominated the listing time on large app sets.
+                    val launchablePackages = mutableSetOf<String>()
+                    val launcherIntent =
+                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                    for (info in packageManagerRef.queryIntentActivities(launcherIntent, 0)) {
+                        launchablePackages.add(info.activityInfo.packageName)
+                    }
+
+                    val list = ArrayList<ApplicationInfoWrapper>(installed.size)
+                    for (info in installed) {
+                        if (info.packageName == packageName) continue
+                        val wrapper = ApplicationInfoWrapper(info).loadLabel(packageManagerRef)
+                        val hidden = isHidden(info.packageName)
+                        wrapper.setHidden(hidden)
+
+                        // A hidden system app counts as "not installed": it
+                        // only returns once enabled (cloned) again. Frozen
+                        // user apps stay listed so they can be unfrozen.
+                        if (hidden && wrapper.isSystem() && !showAll) continue
+
+                        val isSystem = wrapper.isSystem()
+                        val isInstalled = (info.flags and ApplicationInfo.FLAG_INSTALLED) != 0
+                        val canLaunch = info.packageName in launchablePackages
+                        if (!showAll && !(!isSystem && isInstalled) && !hidden && !canLaunch) continue
+                        list.add(wrapper)
+                    }
+
+                    // User apps first, then preinstalled; frozen apps last in
+                    // each group; alphabetical as the final tiebreaker.
+                    list.sortWith(
+                        compareBy<ApplicationInfoWrapper> { if (it.isSystem()) 1 else 0 }
+                            .thenBy { if (it.isHidden()) 1 else 0 }
+                            .thenBy { it.labelOrDefault.lowercase() },
+                    )
 
                     try {
                         callback.callback(list)
@@ -463,8 +486,7 @@ class CapsuleService : Service() {
         isProfileOwner && policyManager.isApplicationHidden(adminComponent, packageName)
 
     private fun setForeground() {
-        startForeground(
-            NOTIFICATION_ID,
+        val notification =
             Utility.buildNotification(
                 this,
                 important = false,
@@ -472,8 +494,18 @@ class CapsuleService : Service() {
                 title = getString(R.string.service_title),
                 desc = getString(R.string.service_desc),
                 icon = R.drawable.ic_notification,
-            ),
-        )
+            )
+        // An explicit type keeps system_server from logging a typeless
+        // foreground-service complaint on API 34+.
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     companion object {

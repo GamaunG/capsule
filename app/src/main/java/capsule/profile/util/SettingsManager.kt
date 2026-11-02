@@ -85,8 +85,12 @@ object SettingsManager {
             )
         }
 
-    /** Applies a snapshot produced by [buildSyncBundle] on the other side. */
-    fun applySyncBundle(bundle: Bundle) {
+    /**
+     * Applies a snapshot produced by [buildSyncBundle] on the other side.
+     * Returns true when any stored value actually changed; callers use that
+     * to skip redundant policy re-enforcement.
+     */
+    fun applySyncBundle(bundle: Bundle): Boolean {
         val prefs = bundle.keySet().filter { it != null }
         var changed = false
         for (name in prefs) {
@@ -131,8 +135,11 @@ object SettingsManager {
                 }
             }
         }
-        if (changed) CapsuleLog.i("Applied ${prefs.size} synced preferences from the other profile")
-        applyAll()
+        if (changed) {
+            CapsuleLog.i("Applied ${prefs.size} synced preferences from the other profile")
+            applyAll()
+        }
+        return changed
     }
 
     fun applyAll() {

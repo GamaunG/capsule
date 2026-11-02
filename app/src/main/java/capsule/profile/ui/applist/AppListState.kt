@@ -15,6 +15,7 @@ import capsule.profile.services.IAppInstallCallback
 import capsule.profile.services.ICapsuleService
 import capsule.profile.services.IGetAppsCallback
 import capsule.profile.services.ILoadIconCallback
+import capsule.profile.util.AppListCache
 import capsule.profile.util.ApplicationInfoWrapper
 import capsule.profile.util.CapsuleLog
 import capsule.profile.util.Fuzzy
@@ -24,9 +25,11 @@ import capsule.profile.util.Utility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 
 /**
@@ -41,12 +44,17 @@ class AppListState(
     private val onOtherService: () -> ICapsuleService?,
     private val showAllProvider: () -> Boolean,
     private val refreshPeer: () -> Unit = {},
+    private val cache: AppListCache? = null,
 ) {
     var apps by mutableStateOf<List<ApplicationInfoWrapper>>(emptyList())
         private set
     var loading by mutableStateOf(true)
         private set
     var refreshing by mutableStateOf(false)
+        private set
+
+    /** True while [apps] is the stale on-disk snapshot, not fresh data. */
+    var fromCache by mutableStateOf(false)
         private set
     var searchQuery by mutableStateOf("")
     var selectionMode by mutableStateOf(false)
@@ -75,7 +83,25 @@ class AppListState(
 
     private var refreshingJob: Job? = null
 
-    private suspend fun awaitGetApps(): List<ApplicationInfoWrapper> =
+    // Hydrates from the disk cache once per state lifetime.
+    private var cacheHydrated = false
+
+    private companion object {
+        const val APP_LIST_TIMEOUT_MS = 10_000L
+    }
+
+    private suspend fun awaitGetApps(): List<ApplicationInfoWrapper> {
+        // A service dying mid-request would hang the coroutine forever and
+        // leave the list in its loading state; bound the wait instead.
+        return try {
+            withTimeout(APP_LIST_TIMEOUT_MS) { awaitGetAppsInner() }
+        } catch (e: TimeoutCancellationException) {
+            CapsuleLog.w("App list request timed out; the service may have died mid-call")
+            emptyList()
+        }
+    }
+
+    private suspend fun awaitGetAppsInner(): List<ApplicationInfoWrapper> =
         suspendCancellableCoroutine { cont ->
             try {
                 service.getApps(
@@ -100,6 +126,19 @@ class AppListState(
         refreshingJob =
             scope.launch {
                 try {
+                    // A stale on-disk snapshot shows instantly and gets dimmed;
+                    // the fresh query replaces it right after.
+                    if (!cacheHydrated && cache != null && apps.isEmpty() && loading) {
+                        cacheHydrated = true
+                        val cached = withContext(Dispatchers.IO) { cache.load() }
+                        if (cached != null && apps.isEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                apps = cached
+                                fromCache = true
+                                loading = false
+                            }
+                        }
+                    }
                     val list = withContext(Dispatchers.IO) { awaitGetApps() }
                     if (isRemote) {
                         withContext(Dispatchers.IO) {
@@ -111,9 +150,11 @@ class AppListState(
                             )
                         }
                     }
+                    withContext(Dispatchers.IO) { cache?.save(list) }
                     withContext(Dispatchers.Main) {
                         apps = list
                         if (isRemote) reloadAutoFreezeList()
+                        fromCache = false
                         loading = false
                         refreshing = false
                     }
@@ -300,7 +341,14 @@ class AppListState(
         when (result) {
             Activity.RESULT_OK -> {
                 onMessage(
-                    if (isInstall) R.string.clone_success else R.string.uninstall_success,
+                    if (isInstall) {
+                        R.string.clone_success
+                    } else if (app.isSystem()) {
+                        // System apps are hidden rather than uninstalled.
+                        R.string.remove_system_app_success
+                    } else {
+                        R.string.uninstall_success
+                    },
                     app.labelOrDefault,
                 )
                 refresh()

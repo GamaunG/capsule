@@ -223,7 +223,17 @@ class FreezeService : Service() {
             // Main profile side has nothing to forward to.
         }
 
-        startForeground(NOTIFICATION_ID, notification)
+        // An explicit type keeps system_server from logging a typeless
+        // foreground-service complaint on API 34+.
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     companion object {

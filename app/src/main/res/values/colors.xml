@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#006A60</color>
+    <!-- Cold-start window color; the night variant sits next to the dark
+         Compose surfaces so the launch no longer flashes a lighter gray. -->
+    <color name="launch_background">#F7F8F7</color>
 </resources>

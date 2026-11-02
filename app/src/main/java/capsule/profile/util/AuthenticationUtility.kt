@@ -25,7 +25,9 @@ object AuthenticationUtility {
     fun signIntent(intent: Intent) {
         val key = LocalStorageManager.getString(LocalStorageManager.PREF_AUTH_KEY)
         if (!isValidKey(key)) {
-            // No key yet: bootstrap by sending a freshly generated one.
+            // No key yet: bootstrap by sending a freshly generated one. The
+            // force flag lets the other side replace a stale key from a
+            // previous installation of this app.
             val newKey =
                 try {
                     val keyGen = KeyGenerator.getInstance("HmacSHA256")
@@ -36,6 +38,7 @@ object AuthenticationUtility {
                 }
             LocalStorageManager.setString(LocalStorageManager.PREF_AUTH_KEY, newKey)
             intent.putExtra("auth_key", newKey)
+            intent.putExtra("auth_force", true)
         } else {
             val timestamp = System.currentTimeMillis()
             val nonce = UUID.randomUUID().toString()
@@ -58,6 +61,16 @@ object AuthenticationUtility {
             }
             return false
         } else {
+            val receivedKey = intent.getStringExtra("auth_key")
+            if (isValidKey(receivedKey) && intent.getBooleanExtra("auth_force", false)) {
+                // The other side was reinstalled and lost its data: accept the
+                // fresh key it bootstrapped with. Only our own signature can
+                // reach this activity, so the flag cannot be abused.
+                CapsuleLog.i("Accepting a re-bootstrapped auth key from the other profile")
+                LocalStorageManager.setString(LocalStorageManager.PREF_AUTH_KEY, receivedKey!!)
+                return true
+            }
+
             val now = System.currentTimeMillis()
             val intentTimestamp = intent.getLongExtra("timestamp", 0)
             val age = now - intentTimestamp

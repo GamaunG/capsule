@@ -21,8 +21,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -39,12 +41,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +80,7 @@ fun AppListPage(
     state: AppListState,
     otherPackages: () -> Set<String>,
     modifier: Modifier = Modifier,
+    cloneAvailable: Boolean = true,
 ) {
     val context = LocalContext.current
     var sheetApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
@@ -113,27 +118,73 @@ fun AppListPage(
                 }
 
                 else -> {
+                    val searching = state.searchQuery.isNotBlank()
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp),
                     ) {
-                        items(state.displayedApps, key = { it.packageName }) { app ->
-                            AppListItem(
-                                app = app,
-                                state = state,
-                                onClick = {
-                                    if (state.selectionMode) {
-                                        state.toggleSelected(app)
-                                    } else {
-                                        sheetApp = app
+                        if (searching) {
+                            // Search results keep the score order, no sections.
+                            items(state.displayedApps, key = { it.packageName }) { app ->
+                                AppListItem(
+                                    app = app,
+                                    state = state,
+                                    inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
+                                    dimmed = state.fromCache,
+                                    onClick = { onListClick(state, app) { sheetApp = it } },
+                                    onLongClick = {
+                                        if (state.isRemote && !state.selectionMode) {
+                                            state.enterSelectionMode(app)
+                                        }
+                                    },
+                                )
+                            }
+                        } else {
+                            // The service sorts user apps before preinstalled
+                            // ones; the sections below keep that order.
+                            val userApps = state.displayedApps.filter { !it.isSystem() }
+                            val systemApps = state.displayedApps.filter { it.isSystem() }
+                            if (userApps.isNotEmpty()) {
+                                item(key = "header_user") {
+                                    ListSectionHeader(stringResource(R.string.list_section_user_apps))
+                                }
+                            }
+                            items(userApps, key = { it.packageName }) { app ->
+                                AppListItem(
+                                    app = app,
+                                    state = state,
+                                    inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
+                                    dimmed = state.fromCache,
+                                    onClick = { onListClick(state, app) { sheetApp = it } },
+                                    onLongClick = {
+                                        if (state.isRemote && !state.selectionMode) {
+                                            state.enterSelectionMode(app)
+                                        }
+                                    },
+                                )
+                            }
+                            if (systemApps.isNotEmpty()) {
+                                item(key = "header_system") {
+                                    Column {
+                                        Spacer(Modifier.height(8.dp))
+                                        ListSectionHeader(stringResource(R.string.list_section_system_apps))
                                     }
-                                },
-                                onLongClick = {
-                                    if (state.isRemote && !state.selectionMode) {
-                                        state.enterSelectionMode(app)
-                                    }
-                                },
-                            )
+                                }
+                            }
+                            items(systemApps, key = { it.packageName }) { app ->
+                                AppListItem(
+                                    app = app,
+                                    state = state,
+                                    inOtherProfile = !state.isRemote && app.packageName in otherPackages(),
+                                    dimmed = state.fromCache,
+                                    onClick = { onListClick(state, app) { sheetApp = it } },
+                                    onLongClick = {
+                                        if (state.isRemote && !state.selectionMode) {
+                                            state.enterSelectionMode(app)
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -146,6 +197,7 @@ fun AppListPage(
             app = app,
             state = state,
             otherPackages = otherPackages,
+            cloneAvailable = cloneAvailable,
             onDismiss = { sheetApp = null },
             onClone = {
                 sheetApp = null
@@ -259,11 +311,33 @@ private fun EmptyListState() {
     }
 }
 
+/** Shared click handler for list items: selection mode toggles, taps open the sheet. */
+private fun onListClick(
+    state: AppListState,
+    app: ApplicationInfoWrapper,
+    openSheet: (ApplicationInfoWrapper) -> Unit,
+) {
+    if (state.selectionMode) state.toggleSelected(app) else openSheet(app)
+}
+
+@Composable
+private fun ListSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 28.dp, top = 10.dp, bottom = 6.dp),
+    )
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun AppListItem(
     app: ApplicationInfoWrapper,
     state: AppListState,
+    inOtherProfile: Boolean,
+    dimmed: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -287,7 +361,10 @@ private fun AppListItem(
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
-                ).padding(10.dp),
+                ).padding(10.dp)
+                // Stale snapshots from the disk cache stay visible but dimmed
+                // until the fresh list arrives.
+                .let { if (dimmed) it.alpha(0.5f) else it },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -338,6 +415,13 @@ private fun AppListItem(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline,
             )
+        } else if (inOtherProfile) {
+            // Marks apps that already exist in the work profile.
+            Icon(
+                imageVector = done,
+                contentDescription = stringResource(R.string.list_item_installed_badge),
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -349,6 +433,7 @@ private fun AppActionsSheet(
     app: ApplicationInfoWrapper,
     state: AppListState,
     otherPackages: () -> Set<String>,
+    cloneAvailable: Boolean,
     onDismiss: () -> Unit,
     onClone: () -> Unit,
     onUninstall: () -> Unit,
@@ -364,9 +449,12 @@ private fun AppActionsSheet(
     // The widget option only applies to apps that actually ship widgets.
     var hasWidgets by remember { mutableStateOf(false) }
     LaunchedEffect(app.packageName) { hasWidgets = state.hasWidgets(app) }
-    // Restrictions are only editable when the app publishes a schema for them.
+    // Restrictions are only editable from the work profile side, where the
+    // app is under Capsule's control; querying them on the main side throws.
     var hasRestrictions by remember { mutableStateOf(false) }
-    LaunchedEffect(app.packageName) { hasRestrictions = state.hasEditableRestrictions(app) }
+    LaunchedEffect(app.packageName) {
+        hasRestrictions = state.isRemote && state.hasEditableRestrictions(app)
+    }
     val inOtherProfile = app.packageName in otherPackages()
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -380,6 +468,15 @@ private fun AppActionsSheet(
                         icon = shield_person,
                         label = stringResource(R.string.clone_to_main_profile),
                         onClick = onClone,
+                    )
+                } else if (!app.isSystem() && inOtherProfile) {
+                    // Keep the row visible but inert, with the reason as the
+                    // label, so the sheet layout stays predictable.
+                    SheetAction(
+                        icon = shield_person,
+                        label = stringResource(R.string.clone_unavailable_already_installed),
+                        enabled = false,
+                        onClick = {},
                     )
                 }
                 if (app.isHidden()) {
@@ -416,12 +513,41 @@ private fun AppActionsSheet(
                 )
                 SheetAction(icon = bolt, label = stringResource(R.string.create_unfreeze_shortcut), onClick = onShortcut)
             } else {
-                if (!inOtherProfile) {
-                    SheetAction(icon = shield_person, label = stringResource(R.string.clone_to_work_profile), onClick = onClone)
+                when {
+                    !cloneAvailable -> {
+                        SheetAction(
+                            icon = shield_person,
+                            label = stringResource(R.string.clone_unavailable_paused),
+                            enabled = false,
+                            onClick = {},
+                        )
+                    }
+
+                    inOtherProfile -> {
+                        SheetAction(
+                            icon = shield_person,
+                            label = stringResource(R.string.clone_unavailable_already_installed),
+                            enabled = false,
+                            onClick = {},
+                        )
+                    }
+
+                    else -> {
+                        SheetAction(icon = shield_person, label = stringResource(R.string.clone_to_work_profile), onClick = onClone)
+                    }
                 }
             }
             if (!app.isSystem()) {
                 SheetAction(icon = delete, label = stringResource(R.string.uninstall_app), onClick = onUninstall, destructive = true)
+            } else if (state.isRemote) {
+                // System apps cannot be uninstalled from the profile; hide them
+                // instead, which also drops them from the list.
+                SheetAction(
+                    icon = delete,
+                    label = stringResource(R.string.remove_system_app_from_profile),
+                    onClick = onUninstall,
+                    destructive = true,
+                )
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -459,14 +585,33 @@ private fun SheetAction(
     label: String,
     onClick: () -> Unit,
     checked: Boolean? = null,
+    enabled: Boolean = true,
     destructive: Boolean = false,
 ) {
+    val contentColor =
+        when {
+            !enabled -> MaterialTheme.colorScheme.onSurfaceVariant
+            destructive -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.onSurface
+        }
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .clickable { onClick() }
+                .let { base ->
+                    if (checked != null) {
+                        // Announce the whole row as one checkbox control.
+                        base.toggleable(
+                            value = checked,
+                            role = Role.Checkbox,
+                            enabled = enabled,
+                            onValueChange = { onClick() },
+                        )
+                    } else {
+                        base.clickable(enabled = enabled) { onClick() }
+                    }
+                }.clip(RoundedCornerShape(16.dp))
+                .let { if (enabled) it else it.alpha(0.45f) }
                 .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -475,8 +620,12 @@ private fun SheetAction(
             imageVector = icon,
             contentDescription = null,
             tint =
-                if (destructive) {
-                    MaterialTheme.colorScheme.error
+                if (enabled) {
+                    if (destructive) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
@@ -484,19 +633,15 @@ private fun SheetAction(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            color =
-                if (destructive) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+            color = contentColor,
             modifier = Modifier.weight(1f),
         )
-        if (checked == true) {
-            Icon(
-                imageVector = done,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+        if (checked != null) {
+            // A visible checkbox separates toggles from one-shot buttons.
+            Checkbox(
+                checked = checked,
+                onCheckedChange = null,
+                enabled = enabled,
             )
         }
     }

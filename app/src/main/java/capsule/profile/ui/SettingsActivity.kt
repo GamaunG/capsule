@@ -36,7 +36,6 @@ import capsule.profile.ui.components.GroupedCard
 import capsule.profile.ui.components.HtmlText
 import capsule.profile.ui.components.SectionHeader
 import capsule.profile.ui.components.SettingActionRow
-import capsule.profile.ui.components.SettingDropdownRow
 import capsule.profile.ui.components.SettingToggleRow
 import capsule.profile.ui.icons.ac_unit
 import capsule.profile.ui.icons.bug_report
@@ -170,24 +169,18 @@ class SettingsActivity : ComponentActivity() {
                         checked = fileChooser,
                         enabled = fileChooserSupported,
                     ) { requestFileChooser(it) }
-                    val pickerOptions =
-                        listOf(
-                            R.string.settings_picker_mode_disabled,
-                            R.string.settings_picker_mode_work_to_main,
-                            R.string.settings_picker_mode_main_to_work,
-                            R.string.settings_picker_mode_both,
-                        )
-                    SettingDropdownRow(
-                        title = stringResource(R.string.settings_cross_profile_picker),
-                        desc = stringResource(pickerOptions[pickerMode]),
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_cross_profile_picker_main_to_work),
+                        desc = stringResource(R.string.settings_cross_profile_picker_desc),
                         icon = search,
-                        options = pickerOptions.map { stringResource(it) },
-                        selectedIndex = pickerMode,
-                        onSelect = {
-                            manager.setCrossProfilePickerMode(it)
-                            pickerMode = it
-                        },
-                    )
+                        checked =
+                            pickerMode == SettingsManager.PICKER_MAIN_TO_WORK ||
+                                pickerMode == SettingsManager.PICKER_BOTH,
+                    ) {
+                        val mode = if (it) SettingsManager.PICKER_MAIN_TO_WORK else SettingsManager.PICKER_DISABLED
+                        manager.setCrossProfilePickerMode(mode)
+                        pickerMode = mode
+                    }
                     SettingToggleRow(
                         title = stringResource(R.string.settings_block_contacts_searching),
                         desc = stringResource(R.string.settings_block_contacts_searching_desc),

@@ -21,6 +21,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Environment
+import android.os.UserHandle
 import android.os.UserManager
 import android.provider.MediaStore
 import android.provider.Settings
@@ -76,15 +77,50 @@ object Utility {
     fun isWorkProfileAvailable(context: Context): Boolean {
         // Do NOT sign this probe: signing the very first probe would store a
         // key the other side has never received.
-        return try {
-            transferIntentToProfileUnsigned(context, Intent(DummyActivity.TRY_START_SERVICE))
+        val reachable = resolvesInOtherProfile(context)
+        if (reachable) {
             LocalStorageManager.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
             LocalStorageManager.setBoolean(LocalStorageManager.PREF_HAS_SETUP, true)
+        }
+        return reachable
+    }
+
+    /** True when this app's own bridge resolves in another profile. Side-effect free. */
+    fun resolvesInOtherProfile(context: Context): Boolean =
+        try {
+            transferIntentToProfileUnsigned(context, Intent(DummyActivity.TRY_START_SERVICE))
             true
         } catch (e: IllegalStateException) {
             false
         }
+
+    /**
+     * The first profile other than ours in this profile group, if any. Used
+     * for existence checks only; profile types are not distinguishable
+     * through public APIs.
+     */
+    fun getWorkProfileUserHandle(context: Context): UserHandle? {
+        val manager = context.getSystemService(UserManager::class.java)
+        val me = android.os.Process.myUserHandle()
+        return manager.userProfiles.firstOrNull { it != me }
     }
+
+    /**
+     * The profile group member currently in quiet mode (Work Mode off), if
+     * any. Quiet mode only applies to managed profiles, so this doubles as a
+     * safe handle for resume requests. API 29+.
+     */
+    fun getPausedWorkProfileHandle(context: Context): UserHandle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val manager = context.getSystemService(UserManager::class.java)
+        val me = android.os.Process.myUserHandle()
+        return manager.userProfiles.firstOrNull {
+            it != me && runCatching { manager.isQuietModeEnabled(it) }.getOrDefault(false)
+        }
+    }
+
+    /** True while the managed profile is paused (Work Mode off). API 29+. */
+    fun isWorkProfilePaused(context: Context): Boolean = getPausedWorkProfileHandle(context) != null
 
     /** (Re)installs all cross-profile intent filters and profile policies. */
     @Suppress("DEPRECATION")
@@ -131,30 +167,24 @@ object Utility {
         )
 
         // Picker-based sharing is user mediated and independent from File Shuttle.
-        // FLAG_MANAGED_CAN_ACCESS_PARENT lets intents sent from the main profile
-        // resolve in the work profile, FLAG_PARENT_CAN_ACCESS_MANAGED the other
-        // way around.
+        // Only the main-to-work direction is ours to control: Android installs
+        // system-owned defaults that always let work profile pickers reach the
+        // main profile, and no profile owner can remove those. Our filter uses
+        // FLAG_MANAGED_CAN_ACCESS_PARENT so intents sent from the main profile
+        // resolve in the work profile.
         val pickerMode = SettingsManager.getCrossProfilePickerMode()
-        if (pickerMode != SettingsManager.PICKER_DISABLED) {
-            var pickerFlags = 0
-            if (pickerMode == SettingsManager.PICKER_WORK_TO_MAIN ||
+        val pickerEnabled =
+            pickerMode == SettingsManager.PICKER_MAIN_TO_WORK ||
                 pickerMode == SettingsManager.PICKER_BOTH
-            ) {
-                pickerFlags = pickerFlags or DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
-            }
-            if (pickerMode == SettingsManager.PICKER_MAIN_TO_WORK ||
-                pickerMode == SettingsManager.PICKER_BOTH
-            ) {
-                pickerFlags = pickerFlags or DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
-            }
-            CapsuleLog.i("Installing system picker filters for mode $pickerMode (flags $pickerFlags)")
+        if (pickerEnabled) {
+            CapsuleLog.i("Installing system picker filters for the main-to-work direction")
 
             val photoPickerFilter = IntentFilter(MediaStore.ACTION_PICK_IMAGES)
             photoPickerFilter.addCategory(Intent.CATEGORY_DEFAULT)
             manager.addCrossProfileIntentFilter(
                 adminComponent,
                 photoPickerFilter,
-                pickerFlags,
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT,
             )
 
             val documentPickerFilter = IntentFilter()
@@ -166,7 +196,7 @@ object Utility {
             manager.addCrossProfileIntentFilter(
                 adminComponent,
                 documentPickerFilter,
-                pickerFlags,
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT,
             )
         }
 

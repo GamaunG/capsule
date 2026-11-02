@@ -24,8 +24,12 @@
     <string name="setup_wizard_please_wait">Please wait…</string>
     <string name="setup_wizard_please_wait_text">We are trying to initialize Work Profile and set up Capsule on your device.</string>
     <string name="setup_wizard_failed">Setup failed</string>
-    <string name="setup_wizard_failed_text">We were unable to set up Capsule.\n\nIf this device already has a work profile from Capsule or another management app, remove it in Settings before trying again. On custom ROMs, setup can also fail when the system provisioning role holder or related setup components are missing.\n\nUse \"Open account settings\" below to reach the screen where a leftover work profile can be removed. Tap Copy details to collect device and provisioning-handler information for a bug report.</string>
-    <string name="setup_open_account_settings">Open account settings</string>
+    <string name="setup_wizard_failed_text">We were unable to set up Capsule.\n\nIf this device already has a work profile from Capsule or another management app, remove it before trying again: open <b>Settings → Accounts and backup</b>, switch to the <b>Work</b> tab, tap <b>Manage accounts</b> and remove the work profile. On custom ROMs, setup can also fail when the system provisioning role holder or related setup components are missing.\n\nUse \"Open settings\" below to reach the accounts screen where a leftover work profile can be removed. Tap Copy details to collect device and provisioning-handler information for a bug report.</string>
+    <string name="setup_failed_reason_profile_exists">A work profile already exists on this device. Android allows only one, so remove it before setting up Capsule.</string>
+    <string name="setup_failed_reason_other_owner">A work profile exists, but Capsule is not installed inside it. It is probably managed by another app; remove it before setting up Capsule.</string>
+    <string name="setup_failed_reason_not_allowed">This device does not allow creating a work profile right now. A device owner or another policy may be in effect.</string>
+    <string name="setup_failed_reason_aborted">Provisioning was cancelled before it completed. If you cancelled it yourself, start again whenever you are ready.</string>
+    <string name="setup_open_settings">Open settings</string>
     <string name="setup_copy_diagnostics">Copy details</string>
     <string name="setup_diagnostics_copied">Provisioning details copied.</string>
     <string name="setup_wizard_action_required">Action required</string>
@@ -52,6 +56,9 @@
     <string name="list_empty">No apps to show here</string>
     <string name="list_loading">Loading…</string>
     <string name="search_hint">Search apps</string>
+    <string name="list_section_user_apps">Your apps</string>
+    <string name="list_section_system_apps">Preinstalled apps</string>
+    <string name="list_item_installed_badge">Installed in the work profile</string>
 
     <!-- App Context Menu -->
     <string name="clone_to_work_profile">Clone to Capsule (Work Profile)</string>
@@ -66,6 +73,10 @@
     <string name="allow_cross_profile_widgets">Allow Widgets in Main Profile</string>
     <string name="allow_cross_profile_interaction">Allow Connected App Requests</string>
     <string name="manage_app_restrictions">Manage app restrictions</string>
+    <string name="clone_unavailable_already_installed">Already installed in the other profile</string>
+    <string name="clone_unavailable_paused">Work profile is paused</string>
+    <string name="remove_system_app_from_profile">Remove from work profile</string>
+    <string name="remove_system_app_success">Application "%s" was removed from the work profile and can be cloned back later.</string>
 
     <!-- Action Bar Options Menu -->
     <string name="search">Search</string>
@@ -83,12 +94,8 @@
     <string name="settings_interaction">Interaction</string>
     <string name="settings_cross_profile_file_chooser">File Shuttle</string>
     <string name="settings_cross_profile_file_chooser_desc">Adds a Capsule root with the other profile\'s files to the system Files app and document pickers. This root is independent from the system picker directions below; keep this switch off to fully block cross-profile file access.</string>
-    <string name="settings_cross_profile_picker">Allow file picking between profiles</string>
-    <string name="settings_cross_profile_picker_desc">Which profile may pick the other profile\'s files through Android\'s system pickers, such as the photo picker. Access stays limited to the files you select. Disabled by default.</string>
-    <string name="settings_picker_mode_disabled">Disabled</string>
-    <string name="settings_picker_mode_work_to_main">Work profile may pick main profile files</string>
-    <string name="settings_picker_mode_main_to_work">Main profile may pick work profile files</string>
-    <string name="settings_picker_mode_both">Both directions</string>
+    <string name="settings_cross_profile_picker_main_to_work">Main profile may pick work profile files</string>
+    <string name="settings_cross_profile_picker_desc">Allow apps in the main profile to pick files from the work profile through Android\'s system pickers. Android itself always lets work profile apps pick main profile files; no app can turn that off.</string>
     <string name="settings_block_contacts_searching">Block Contacts Searching</string>
     <string name="settings_block_contacts_searching_desc">Deny access from main profile to contacts inside work profile.</string>
     <string name="settings_payment_stub">Payment Service Stub</string>
@@ -121,6 +128,14 @@
     <string name="provision_finished">Capsule setup complete. Now restarting Capsule. If Capsule didn\'t start automatically, you may launch it again from your launcher.</string>
     <string name="work_profile_not_found">Work profile not found. Please restart the app to re-provision the profile.</string>
     <string name="work_mode_disabled">It looks like you have disabled Work Mode while starting Capsule. If you have enabled it now, please start Capsule again.</string>
+
+    <!-- Paused / unreachable work profile -->
+    <string name="work_profile_paused_title">Work profile is paused</string>
+    <string name="work_profile_paused_text">The profile stays isolated and nothing runs inside it until it is resumed.</string>
+    <string name="work_profile_resume">Resume</string>
+    <string name="work_profile_unreachable_title">Work profile is not reachable</string>
+    <string name="work_profile_unreachable_text">A work profile exists, but Capsule cannot reach it. It may be managed by another app, or Capsule was removed from it. The profile can be removed under Settings → Accounts and backup → Work.</string>
+    <string name="work_profile_open_settings">Open settings</string>
     <string name="clone_success">Application \"%s\" cloned successfully</string>
     <string name="clone_fail_already_exists">Application \"%s\" is already installed in the other profile.</string>
     <string name="uninstall_success">Application \"%s\" uninstalled successfully</string>

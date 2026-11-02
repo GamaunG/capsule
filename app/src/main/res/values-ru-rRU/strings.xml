@@ -110,4 +110,21 @@
     <string name="allow_cross_profile_interaction">Разрешить работу между профилями</string>
     <string name="settings_payment_stub_desc">Чтобы получить возможность выбрать платёжное приложение внутри рабочего профиля в Настройки - NFC, включите фальшивый платёжный сервис NFC в основном профиле. Это временное решение ошибки Android, из-за которой невозможно выбрать платёжное приложение внутри рабочего профиля, если в основном профиле таких нет.</string>
     <string name="settings_payment_stub">Заглушка платёжных сервисов</string>
+    <string name="setup_failed_reason_profile_exists">На устройстве уже есть рабочий профиль. Android позволяет только один, поэтому удалите его перед настройкой Capsule.</string>
+    <string name="setup_failed_reason_other_owner">Рабочий профиль существует, но Capsule в нём не установлен. Вероятно, им управляет другое приложение; удалите его перед настройкой Capsule.</string>
+    <string name="setup_failed_reason_not_allowed">Устройство сейчас не позволяет создать рабочий профиль. Возможно, действует владелец устройства или другая политика.</string>
+    <string name="setup_failed_reason_aborted">Провижининг был отменён до завершения. Если вы отменили его сами, начните заново, когда будете готовы.</string>
+    <string name="list_section_user_apps">Ваши приложения</string>
+    <string name="list_section_system_apps">Предустановленные приложения</string>
+    <string name="list_item_installed_badge">Установлено в рабочем профиле</string>
+    <string name="clone_unavailable_already_installed">Уже установлено в другом профиле</string>
+    <string name="clone_unavailable_paused">Рабочий профиль приостановлен</string>
+    <string name="remove_system_app_from_profile">Убрать из рабочего профиля</string>
+    <string name="remove_system_app_success">Приложение «%s» убрано из рабочего профиля; позже его можно склонировать обратно.</string>
+    <string name="work_profile_paused_title">Рабочий профиль приостановлен</string>
+    <string name="work_profile_paused_text">Профиль остаётся изолированным, и внутри него ничего не запускается, пока он не будет включён обратно.</string>
+    <string name="work_profile_resume">Включить</string>
+    <string name="work_profile_unreachable_title">Рабочий профиль недоступен</string>
+    <string name="work_profile_unreachable_text">Рабочий профиль существует, но Capsule не может с ним связаться. Возможно, им управляет другое приложение, или Capsule был из него удалён. Профиль можно удалить в Настройках → Аккаунты и синхронизация → Рабочий профиль.</string>
+    <string name="work_profile_open_settings">Открыть настройки</string>
 </resources>
