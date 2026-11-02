@@ -153,6 +153,15 @@ object Utility {
         addFilter(DummyActivity.INSTALL_PACKAGE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
         addFilter(DummyActivity.UNINSTALL_PACKAGE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
 
+        // Settings screens opened on behalf of the main profile: the
+        // special-access permission chain, the per-app App Info screen and
+        // the notification permission request for the Auto Freeze service.
+        // Without these filters the cross-profile resolution fails and the
+        // work-profile permission steps can never be shown.
+        addFilter(DummyActivity.OPEN_SETTINGS_IN_PROFILE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
+        addFilter(DummyActivity.OPEN_APP_DETAILS_IN_PROFILE, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
+        addFilter(DummyActivity.REQUEST_NOTIFICATION_PERMISSION, DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT)
+
         // Share targets from the work profile may reach the main profile.
         val actionSendFilter = IntentFilter()
         actionSendFilter.addAction(Intent.ACTION_SEND)

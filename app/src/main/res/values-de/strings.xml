@@ -48,7 +48,6 @@
     <string name="settings_bug_report">Fehler melden / Probleme lösen</string>
     <string name="provision_finished">Die Einrichtung von Capsule ist abgeschlossen. Das Programm wird jetzt neu gestartet. Sollte Capsule nicht automatisch starten, rufen Sie das Programm erneut manuell über das Capsule-Symbol auf.</string>
     <string name="work_profile_not_found">Das Arbeits-Profil wurde nicht gefunden. Bitte starten Sie die App nochmals, um das Profil erneut bereitzustellen.</string>
-    <string name="work_mode_disabled">Anscheinend haben Sie das Arbeits-Profil vor dem Starten von Capsule abgeschaltet. Sofern Sie es jetzt eingeschaltet haben, starten Sie Capsule erneut.</string>
     <string name="clone_success">Die Anwendung \"%s\" wurde erfolgreich geklont</string>
     <string name="uninstall_success">Die Anwendung \"%s\" wurde erfolgreich deinstalliert</string>
     <string name="freeze_success">Die Anwendung \"%s\" wurde erfolgreich eingefrostet</string>
@@ -57,14 +56,9 @@
     <string name="uninstall_fail_system_app">Die Deinstallation von System-Apps in einem Profil, auf das Capsule keinen Zugriff hat, ist fehlgeschlagen.</string>
     <string name="unsupported_launcher">Das Hinzufügen einer Verknüpfung zu Ihrem Startprogramm ist fehlgeschlagen. Bitte kontaktieren sie den Entwickler, um weitere Informationen zu erhalten.</string>
     <string name="freeze_all_success">Alle Anwendungen aus der \"Auto-Frost\" Liste wurden erfolgreich eingefrostet.</string>
-    <string name="shortcut_create_success">Eine Verknüpfung wurde Ihrem Startprogramm hinzugefügt.</string>
-    <string name="request_usage_stats">Capsule benötigt Zugriffsrechte auf <b>Nutzungs-Statistiken</b>. Bitte erteilen Sie die nötigen Zugriffsrechte für <b>BEIDE</b> Capsule Apps, die nach Klick auf \"OK\" im folgenden Dialog angezeigt werden. Bei Nichterteilung der Zugriffsrechte kann diese Programmfunktion nicht korrekt ausgeführt werden.</string>
     <string name="launch_app_fail">Die Anwendung %s konnte nicht gestartet werden, das sie keine grafische Benutzeroberfläche hat.</string>
-    <string name="request_storage_manager">Capsule benötigt Zugriff auf <b>Alle Dateien</b> um Datei-Shuttle anbieten zu können. Bitte erteilen Sie die notwendigen Zugriffsrechte für <b>BEIDE</b> (persönliches Profil / Arbeitsprofil) Capsule-Apps, die nach dem Klick auf \"OK\" in der nachfolgenden Meldung angezeigt werden.</string>
-    <string name="request_system_alert">Damit der Datei-Shuttle korrekt funktioniert, muss Capsule über anderen Anwendungen eingeblendet werden können. Bitte erteilen Sie die notwendigen Zugriffsrechte für <b>BEIDE</b> (persönliches Profil / Arbeitsprofil) Capsule-Apps, die nach dem Klick auf \"OK\" in der nachfolgenden Meldung angezeigt werden. Diese Berechtigung wird genutzt, um die Datei-Shuttle-Dienste im Hintergrund zu starten.</string>
     <string name="miui_cannot_clone">Das Klonen von Nicht-System-Apps in das Arbeits-Profil ist derzeit unter MIUI nicht möglich. Bitte klonen sie den App-Store Ihres Systems (z.B. <b>Play Store</b>) in ihr Arbeits-Profil und installieren sie ihre benötigten Anwendungen von dort aus.</string>
     <string name="continue_anyway">Trotzdem fortsetzen</string>
-    <string name="settings_translate">Übersetzung</string>
     <string name="documents_ui">Datei-Manager-Oberfläche</string>
     <string name="settings_block_contacts_searching">Blockiere Suche nach Kontakten</string>
     <string name="settings_block_contacts_searching_desc">Zugriff vom persönlichen Profil zu den Kontakten im Arbeitsprofil blockieren.</string>

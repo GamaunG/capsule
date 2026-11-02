@@ -14,7 +14,6 @@
     <string name="finish_provision_desc">Felicitaciones! Se encuentra a un click de terminar la configuración de Capsule.</string>
     <string name="provision_finished">Configuración de Capsule completa. Reiniciando Capsule a continuación. Si Capsule no se inicia de manera automática puedes iniciarlo nuevamente desde tu lanzador de aplicaciones.</string>
     <string name="work_profile_not_found">Perfil de trabajo no encontrado. Por favor reinicia la aplicación para aprovisionar el perfil.</string>
-    <string name="work_mode_disabled">Parece que has deshabilitado el modo de trabajo mientras Capsule se reiniciaba. Si lo has habilitado ahora, por favor reinicia Capsule de nuevo.</string>
     <string name="clone_success">Aplicación \"%s\" clonada exitosamente</string>
     <string name="uninstall_success">Aplicación \"%s\" desinstalada exitosamente</string>
     <string name="freeze_success">Aplicación \"%s\" suspendida exitosamente</string>
@@ -78,13 +77,8 @@
     <string name="settings_dont_freeze_foreground_desc">NO suspendas aplicaciones en el fondo (con actividad visible) cuando bloquees la pantalla. Esto puede ser útil para aplicaciones como reproductores de música, pero vas a necesitar suspenderlas a través de \"Acceso directo a suspensión por lote\" más tarde.</string>
     <string name="settings_version">Versión</string>
     <string name="settings_source_code">Código fuente</string>
-    <string name="settings_translate">Traducir</string>
     <string name="settings_bug_report">Reporte de errores/ Seguimiento de problemas</string>
-    <string name="shortcut_create_success">Acceso directo creado en tu lanzador de aplicaciones.</string>
-    <string name="request_usage_stats">Capsule necesita el permiso <b> Estadísticas de uso</b> para hacer esto. Por favor habilita el permiso para <b>AMBAS</b> de las aplicaciones Capsule mostradas en la ventana siguiente a que presiones \"Ok\". No hacerlo causara que esta característica no funcione adecuadamente.</string>
     <string name="launch_app_fail">No se puede lanzar la aplicación %s por que no tiene interfaz gráfica.</string>
-    <string name="request_storage_manager">Capsule necesita acceder a <b>Todos los archivos</b> para el selector de archivos. Por favor habilita el permiso para <b>AMBAS</b> aplicaciones Capsule (Personal / Trabajo) en la ventana siguiente al presionar \"Ok\".</string>
-    <string name="request_system_alert">Capsule necesita <b>Mostrarse sobre otras aplicaciones</b> para que la función de pasarela de archivos funciones correctamente. Por favor habilita el permiso para <b>AMBAS</b> aplicaciones Capsule mostradas en la ventana después de que hagas click en \"Ok\". Este permiso es usado para iniciar el servicio de pasarela en segundo plano.</string>
     <string name="continue_anyway">Continuar de todos modos</string>
     <string name="setup_wizard_welcome">Bienvenido a Capsule</string>
     <string name="setup_wizard_welcome_text">Capsule es una aplicación que te ayuda a ejecutar otras aplicaciones en un perfil aislado. Lo hace haciendo uso de la característica <b>Perfil de trabajo</b> de Android.

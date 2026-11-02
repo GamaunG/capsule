@@ -55,10 +55,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import capsule.profile.R
+import capsule.profile.services.IAppInstallCallback
 import capsule.profile.services.ICapsuleService
 import capsule.profile.services.IStartActivityProxy
-import capsule.profile.services.KillerService
+import capsule.profile.ui.DummyActivity
 import capsule.profile.ui.applist.AppListPage
 import capsule.profile.ui.applist.AppListState
 import capsule.profile.ui.components.AppSearchField
@@ -77,16 +79,20 @@ import capsule.profile.ui.icons.shield_person
 import capsule.profile.ui.icons.visibility
 import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.AppListCache
+import capsule.profile.util.ApplicationInfoWrapper
 import capsule.profile.util.AuthenticationUtility
 import capsule.profile.util.CapsuleLog
 import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.SettingsManager
 import capsule.profile.util.UriForwardProxy
 import capsule.profile.util.Utility
+import capsule.profile.util.WorkServiceHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -107,6 +113,29 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) { bindWorkServiceCb(it) }
+
+    // Returning from the work profile's unknown-sources settings screen:
+    // when the consent was granted, this ROM usually restarts the whole
+    // package (the app op change kills it) and this callback never fires.
+    // It fires when the consent was declined, or on ROMs that do not restart
+    // us — in the latter case the picker can open right away.
+    private val installPermissionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            val work = serviceWork ?: return@registerForActivityResult
+            refreshScope.launch {
+                val granted =
+                    withContext(Dispatchers.IO) {
+                        runCatching { work.hasInstallPermission() }.getOrDefault(false)
+                    }
+                if (granted) {
+                    selectApk.launch(null)
+                } else {
+                    snackbarHostState.showSnackbar(getString(R.string.install_app_to_profile_fail))
+                }
+            }
+        }
 
     private lateinit var storage: LocalStorageManager
 
@@ -144,6 +173,19 @@ class MainActivity : ComponentActivity() {
     // Notified when the work-profile service process dies, e.g. when the user
     // switches Work Mode off from quick settings while the app is open.
     private var workDeathRecipient: IBinder.DeathRecipient? = null
+
+    // The quiet-mode resume watcher: waits for the user to answer the system
+    // "Unpause work apps?" dialog and then continues the bind chain.
+    private var resumeWatchJob: Job? = null
+
+    // Safety net for a lost main service connection: re-attempts the bind a
+    // bounded number of times if onServiceConnected never arrives.
+    private var bindWatchdogJob: Job? = null
+    private var bindWatchdogRetries = 0
+
+    // Bounded auto-retry while the work profile exists but is still booting
+    // (the "not reachable" banner used to stick until a manual revisit).
+    private var unreachableRetryJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -214,6 +256,8 @@ class MainActivity : ComponentActivity() {
             object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     serviceMain = ICapsuleService.Stub.asInterface(service)
+                    bindWatchdogJob?.cancel()
+                    bindWatchdogRetries = 0
                     mainServiceReady.value = true
                     connectWorkService()
                 }
@@ -225,6 +269,22 @@ class MainActivity : ComponentActivity() {
             },
             false,
         )
+        scheduleBindWatchdog()
+    }
+
+    /** Re-attempts the main bind when the connection never lands in time. */
+    private fun scheduleBindWatchdog() {
+        bindWatchdogJob?.cancel()
+        if (bindWatchdogRetries >= MAX_BIND_WATCHDOG_RETRIES) return
+        bindWatchdogJob =
+            refreshScope.launch {
+                delay(BIND_WATCHDOG_TIMEOUT_MS)
+                if (!mainServiceReady.value && !isFinishing) {
+                    bindWatchdogRetries++
+                    CapsuleLog.w("The main service bind did not complete in time; retrying ($bindWatchdogRetries)")
+                    bindServices()
+                }
+            }
     }
 
     /**
@@ -240,6 +300,7 @@ class MainActivity : ComponentActivity() {
             workPaused.value = false
             workUnreachable.value = false
             serviceWork = null
+            WorkServiceHolder.update(null)
             servicesReady.value = false
             return
         }
@@ -258,6 +319,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showWorkBanner(paused: Boolean) {
         serviceWork = null
+        WorkServiceHolder.update(null)
         servicesReady.value = false
         workListState.value = null
         workPaused.value = paused
@@ -294,10 +356,13 @@ class MainActivity : ComponentActivity() {
             }
 
             Utility.getWorkProfileUserHandle(this) != null -> {
-                // The profile resolves but our own instance inside it does not:
-                // another app manages it, or Capsule was removed from it.
-                CapsuleLog.w("Work profile exists but cannot be reached; showing the banner")
+                // The profile resolves but our own instance inside it does
+                // not: it may be managed by another app, removed, or simply
+                // still booting after Work Mode came back. Give the boot a
+                // few bounded retries before settling on the banner.
+                CapsuleLog.w("Work profile exists but cannot be reached yet; showing the banner and retrying")
                 showWorkBanner(paused = false)
+                scheduleUnreachableRetry()
             }
 
             else -> {
@@ -307,6 +372,7 @@ class MainActivity : ComponentActivity() {
                 storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
                 storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
                 serviceWork = null
+                WorkServiceHolder.update(null)
                 servicesReady.value = false
                 workListState.value = null
                 workPaused.value = false
@@ -316,11 +382,39 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Retries the bind chain for a while when the profile is only booting. */
+    private fun scheduleUnreachableRetry() {
+        if (unreachableRetryJob?.isActive == true) return
+        unreachableRetryJob =
+            refreshScope.launch {
+                repeat(UNREACHABLE_RETRIES) {
+                    delay(UNREACHABLE_RETRY_INTERVAL_MS)
+                    if (servicesReady.value || workAbsent.value) return@launch
+                    // Probing from the background is silently blocked by the
+                    // system; only retry while the UI is in the foreground.
+                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                        CapsuleLog.i("Retrying the work profile connection")
+                        connectWorkService()
+                    }
+                }
+            }
+    }
+
     private fun tryStartWorkServiceCb(result: ActivityResult) {
         if (result.resultCode == RESULT_OK) {
             probingWorkService = false
             CapsuleLog.i("Work profile probe succeeded; binding work service")
             bindWorkService()
+            return
+        }
+
+        // While the resume watcher owns the flow, a refused probe is expected:
+        // Android intercepts the launch into the paused profile and shows the
+        // system "Unpause work apps?" dialog instead. The watcher reacts to
+        // whichever way the user answers.
+        if (resumeWatchJob?.isActive == true) {
+            probingWorkService = false
+            CapsuleLog.i("Probe refused while the resume watcher is active; waiting for the user")
             return
         }
 
@@ -351,12 +445,19 @@ class MainActivity : ComponentActivity() {
     private fun bindWorkService() {
         // A config-change relaunch can replay this while the first chain is
         // still in flight; a second START_SERVICE would strand a second
-        // translucent bridge activity on top of the UI.
-        if (workBindInFlight) {
+        // translucent bridge activity on top of the UI. A launch whose result
+        // was lost (e.g. to a process death) must not poison the flag
+        // forever, so the guard goes stale after a timeout.
+        val now = SystemClock.elapsedRealtime()
+        if (workBindInFlight && now - workBindLaunchedAt < WORK_BIND_STALE_MS) {
             CapsuleLog.w("Work service bind already in flight; ignoring the duplicate")
             return
         }
+        if (workBindInFlight) {
+            CapsuleLog.w("A previous work service bind never returned; retrying")
+        }
         workBindInFlight = true
+        workBindLaunchedAt = now
         val intent = Intent(DummyActivity.START_SERVICE)
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
         // Full settings snapshot: heals any preference the work profile missed.
@@ -380,8 +481,9 @@ class MainActivity : ComponentActivity() {
             }
             attachWorkDeathRecipient()
             registerStartActivityProxies()
-            startKiller()
             servicesReady.value = true
+            WorkServiceHolder.update(serviceWork)
+            unreachableRetryJob?.cancel()
         } else {
             CapsuleLog.w("Failed to bind the work profile service (result=${result.resultCode})")
             onWorkServiceUnreachable()
@@ -423,20 +525,12 @@ class MainActivity : ComponentActivity() {
         serviceWork = null
         servicesReady.value = false
         workListState.value = null
-        // Work Mode off stops the whole profile; anything else (a crash, the
-        // profile being removed) is re-probed so a transient death heals.
-        connectWorkService()
-    }
-
-    private fun startKiller() {
-        // Sticky service that kills both CapsuleServices when we are removed
-        // from recents: activities receive no callback for that.
-        val intent = Intent(this, KillerService::class.java)
-        val bundle = Bundle()
-        bundle.putBinder("main", serviceMain!!.asBinder())
-        bundle.putBinder("work", serviceWork!!.asBinder())
-        intent.putExtra("extra", bundle)
-        startService(intent)
+        WorkServiceHolder.update(null)
+        // Probes launched from the background are silently blocked by the
+        // system; while we are not resumed, onResume owns the recovery.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            connectWorkService()
+        }
     }
 
     fun getOtherService(isRemote: Boolean): ICapsuleService? =
@@ -537,10 +631,10 @@ class MainActivity : ComponentActivity() {
     /** Drops the dead binders and restarts the bind chain without restarting. */
     private fun recoverServicesInPlace() {
         CapsuleLog.w("The services died; recovering the bind chain in place")
-        stopService(Intent(this, KillerService::class.java))
         detachWorkDeathRecipient()
         serviceMain = null
         serviceWork = null
+        WorkServiceHolder.update(null)
         mainServiceReady.value = false
         servicesReady.value = false
         mainListState.value = null
@@ -560,7 +654,7 @@ class MainActivity : ComponentActivity() {
     private fun doOnDestroy() {
         detachWorkDeathRecipient()
         refreshScope.cancel()
-        stopService(Intent(this, KillerService::class.java))
+        WorkServiceHolder.update(null)
         Utility.killCapsuleServices(serviceMain, serviceWork)
     }
 
@@ -576,41 +670,117 @@ class MainActivity : ComponentActivity() {
                     connectWorkService()
                     return
                 }
-        refreshScope.launch {
-            val manager = getSystemService(UserManager::class.java)
-            // Best effort: ask the system to leave quiet mode. The request is
-            // asynchronous and the profile takes a moment to boot.
-            val submitted =
-                try {
-                    @Suppress("DEPRECATION")
-                    manager.requestQuietModeEnabled(false, user)
-                } catch (e: Exception) {
-                    CapsuleLog.w("requestQuietModeEnabled failed; probing anyway", e)
-                    false
-                }
-            // Wait until the profile is both unpaused and resolvable before
-            // probing. Even a timeout must not dead-end: the probe below then
-            // either binds anyway or lands back on the paused banner.
-            val ready =
-                withContext(Dispatchers.IO) {
-                    repeat(40) {
-                        val unpaused =
-                            runCatching { manager.isQuietModeEnabled(user) }
-                                .getOrDefault(true)
-                        if (!unpaused && Utility.resolvesInOtherProfile(this@MainActivity)) {
-                            return@withContext true
+        if (resumeWatchJob?.isActive == true) return
+        resumeWatchJob =
+            refreshScope.launch {
+                val manager = getSystemService(UserManager::class.java)
+                // Best effort: ask the system to leave quiet mode. Stock
+                // Android only honors this from the default launcher or the
+                // system itself, so expect a refusal here.
+                val requested =
+                    try {
+                        @Suppress("DEPRECATION")
+                        manager.requestQuietModeEnabled(false, user)
+                    } catch (e: Exception) {
+                        CapsuleLog.i("Direct quiet-mode request refused; using the system dialog", e)
+                        false
+                    }
+                // Give a honored direct request a moment before falling back
+                // to the user-visible confirmation.
+                val unpausedDirectly =
+                    requested &&
+                        withContext(Dispatchers.IO) {
+                            repeat(8) {
+                                if (!runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(true)) {
+                                    return@withContext true
+                                }
+                                kotlinx.coroutines.delay(250)
+                            }
+                            false
                         }
-                        kotlinx.coroutines.delay(250)
+                if (unpausedDirectly) {
+                    CapsuleLog.i("The work profile resumed without a confirmation")
+                } else {
+                    // Launch the bridge probe INTO the paused profile: Android
+                    // intercepts the launch and offers the system "Unpause
+                    // work apps?" dialog, which lifts quiet mode on
+                    // confirmation — the same path launchers use.
+                    CapsuleLog.i("Triggering the system unpause dialog for the work profile")
+                    withContext(Dispatchers.Main) { launchPausedProfileProbe() }
+                }
+
+                // The dialog belongs to the user; allow a slow answer. Any
+                // outcome must end in either a bound list or the banner.
+                val unpaused =
+                    withContext(Dispatchers.IO) {
+                        repeat(60) {
+                            if (!runCatching { manager.isQuietModeEnabled(user) }.getOrDefault(true)) {
+                                return@withContext true
+                            }
+                            kotlinx.coroutines.delay(500)
+                        }
+                        runCatching { !manager.isQuietModeEnabled(user) }.getOrDefault(false)
+                    }
+                // Leaving quiet mode boots the profile user asynchronously:
+                // cross-profile resolution keeps failing for a moment, and a
+                // probe fired into that window dead-ends on the "not
+                // reachable" banner. Wait for the profile to resolve first
+                // (this is the wait the V8 watcher dropped by accident).
+                if (unpaused) {
+                    withContext(Dispatchers.IO) {
+                        repeat(40) {
+                            if (Utility.resolvesInOtherProfile(this@MainActivity)) {
+                                return@withContext
+                            }
+                            kotlinx.coroutines.delay(500)
+                        }
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    resumeWatchJob = null
+                    if (unpaused) {
+                        CapsuleLog.i("The work profile is running again; continuing the bind chain")
+                        lastWorkProbeAt = 0
+                        workPaused.value = false
+                        workUnreachable.value = false
+                        connectWorkService()
+                    } else if (Utility.isWorkProfilePaused(this@MainActivity)) {
+                        CapsuleLog.w("The work profile did not resume; keeping the paused banner")
+                    }
+                }
+            }
+    }
+
+    /**
+     * Probes the bridge while the profile is paused: the launch itself is
+     * intercepted by the system, which shows the unpause confirmation.
+     * Cross-profile resolution can briefly fail while the profile user is
+     * stopped, so it is retried instead of dead-ending the resume flow.
+     */
+    private fun launchPausedProfileProbe() {
+        val intent = Intent(DummyActivity.TRY_START_SERVICE)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        refreshScope.launch {
+            val resolved =
+                withContext(Dispatchers.IO) {
+                    repeat(5) {
+                        try {
+                            Utility.transferIntentToProfileUnsigned(this@MainActivity, intent)
+                            return@withContext true
+                        } catch (e: IllegalStateException) {
+                            kotlinx.coroutines.delay(400)
+                        }
                     }
                     false
                 }
-            CapsuleLog.i("Work profile resume wait finished (ready=$ready)")
-            withContext(Dispatchers.Main) {
-                lastWorkProbeAt = 0
-                workPaused.value = false
-                workUnreachable.value = false
-                connectWorkService()
+            if (!resolved) {
+                // The watcher times out and lands on the banner.
+                CapsuleLog.w("Could not launch the unpause probe; the system dialog will not appear")
+                return@launch
             }
+            AuthenticationUtility.signIntent(intent)
+            lastWorkProbeAt = 0
+            tryStartWorkService.launch(intent)
         }
     }
 
@@ -665,7 +835,31 @@ class MainActivity : ComponentActivity() {
     }
 
     fun installApkToProfile() {
-        selectApk.launch(null)
+        val work = serviceWork ?: return
+        refreshScope.launch {
+            val granted =
+                withContext(Dispatchers.IO) {
+                    runCatching { work.hasInstallPermission() }.getOrDefault(false)
+                }
+            if (granted) {
+                selectApk.launch(null)
+                return@launch
+            }
+            // Ask for the work profile's unknown-sources consent BEFORE any
+            // file is in flight: granting it restarts this package, which is
+            // harmless while no picker or install stream is open. Once the
+            // consent exists, the menu opens the picker straight away.
+            CapsuleLog.i("Requesting the work profile install permission before the file picker")
+            val intent = Intent(DummyActivity.OPEN_SETTINGS_IN_PROFILE)
+            intent.putExtra("settings_action", Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+            try {
+                Utility.transferIntentToProfile(this@MainActivity, intent)
+            } catch (e: IllegalStateException) {
+                CapsuleLog.w("Could not open the work profile install permission screen", e)
+                return@launch
+            }
+            installPermissionLauncher.launch(intent)
+        }
     }
 
     private fun onApkSelected(uri: Uri?) {
@@ -676,23 +870,57 @@ class MainActivity : ComponentActivity() {
         try {
             work.installApk(
                 proxy,
-                object : capsule.profile.services.IAppInstallCallback.Stub() {
+                object : IAppInstallCallback.Stub() {
                     override fun callback(result: Int) {
-                        runOnUiThread {
-                            // The other side closes the Fd for us.
-                            if (result == android.app.Activity.RESULT_OK) {
-                                refreshScope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        getString(R.string.install_app_to_profile_success),
-                                    )
-                                }
-                            }
-                        }
+                        runOnUiThread { installResultCallback(result) }
                     }
                 },
             )
         } catch (e: android.os.RemoteException) {
             CapsuleLog.w("Failed to forward the selected APK to the work profile", e)
+        }
+    }
+
+    /** Reports an APK install result and refreshes the lists on success. */
+    private fun installResultCallback(result: Int) {
+        if (result == android.app.Activity.RESULT_OK) {
+            refreshScope.launch {
+                snackbarHostState.showSnackbar(getString(R.string.install_app_to_profile_success))
+            }
+            workListState.value?.refresh()
+            mainListState.value?.refresh()
+        } else {
+            refreshScope.launch {
+                snackbarHostState.showSnackbar(getString(R.string.install_app_to_profile_fail))
+            }
+        }
+    }
+
+    /** Opens the system App Info screen of [app] in its own profile. */
+    fun openAppDetails(
+        app: ApplicationInfoWrapper,
+        isRemote: Boolean,
+    ) {
+        if (!isRemote) {
+            try {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", app.packageName, null),
+                    ),
+                )
+            } catch (e: android.content.ActivityNotFoundException) {
+                CapsuleLog.w("The app details screen could not be opened", e)
+            }
+            return
+        }
+        val intent = Intent(DummyActivity.OPEN_APP_DETAILS_IN_PROFILE)
+        intent.putExtra("package", app.packageName)
+        try {
+            Utility.transferIntentToProfile(this, intent)
+            startActivity(intent)
+        } catch (e: IllegalStateException) {
+            CapsuleLog.w("Could not open the app details in the work profile", e)
         }
     }
 
@@ -703,11 +931,10 @@ class MainActivity : ComponentActivity() {
     }
 
     fun openSettings() {
-        val intent = Intent(this, SettingsActivity::class.java)
-        val extras = Bundle()
-        extras.putBinder("profile_service", serviceWork?.asBinder())
-        intent.putExtra("extras", extras)
-        startActivity(intent)
+        // The settings screen reads the work-profile bridge live from
+        // WorkServiceHolder; a binder snapshot passed through the intent
+        // would go stale the moment the bridge rebinds.
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
     // ==== Compose UI ====
@@ -785,6 +1012,10 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(workState) { workState?.refresh() }
 
         LaunchedEffect(mainState.apps) {
+            // A list that is still loading is transiently empty; publishing
+            // that as the badge set would blank every "installed in the other
+            // profile" checkmark until the fresh data lands.
+            if (mainState.loading) return@LaunchedEffect
             val set = mainState.apps.map { it.packageName }.toSet()
             if (set != mainPackages) {
                 mainPackages = set
@@ -792,8 +1023,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(workState?.apps) {
-            val apps = workState?.apps ?: return@LaunchedEffect
-            val set = apps.map { it.packageName }.toSet()
+            val state = workState ?: return@LaunchedEffect
+            if (state.loading) return@LaunchedEffect
+            val set = state.apps.map { it.packageName }.toSet()
             if (set != workPackages) {
                 workPackages = set
                 persistCachedPackages(isWork = true, set)
@@ -904,6 +1136,7 @@ class MainActivity : ComponentActivity() {
                             mainState,
                             otherPackages = { workPackages },
                             cloneAvailable = workState != null,
+                            onOpenAppInfo = { app -> openAppDetails(app, isRemote = false) },
                         )
                     }
                     else -> {
@@ -913,6 +1146,7 @@ class MainActivity : ComponentActivity() {
                                 state,
                                 otherPackages = { mainPackages },
                                 cloneAvailable = true,
+                                onOpenAppInfo = { app -> openAppDetails(app, isRemote = true) },
                             )
                         } else {
                             WorkProfilePlaceholder(
@@ -1216,6 +1450,17 @@ class MainActivity : ComponentActivity() {
         /** Minimum spacing between two work-profile probes. */
         private const val WORK_PROBE_RATE_LIMIT_MS = 3_000L
 
+        /** After this long an in-flight work bind is considered lost. */
+        private const val WORK_BIND_STALE_MS = 20_000L
+
+        /** The main bind watchdog: timeout and retry budget. */
+        private const val BIND_WATCHDOG_TIMEOUT_MS = 2_500L
+        private const val MAX_BIND_WATCHDOG_RETRIES = 3
+
+        /** Auto-retry budget for a work profile that is only booting. */
+        private const val UNREACHABLE_RETRIES = 5
+        private const val UNREACHABLE_RETRY_INTERVAL_MS = 4_000L
+
         // Bind-chain pacing is process-wide on purpose: provisioning the
         // profile regenerates SystemUI overlays, whose CONFIG_ASSETS_PATHS
         // change relaunches this activity mid-chain. Instance fields would
@@ -1226,6 +1471,7 @@ class MainActivity : ComponentActivity() {
 
         // True while a START_SERVICE bridge launch is pending its result.
         private var workBindInFlight = false
+        private var workBindLaunchedAt = 0L
     }
 }
 

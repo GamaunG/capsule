@@ -89,6 +89,8 @@
                 <action android:name="capsule.profile.action.SYNCHRONIZE_PREFERENCE" />
                 <action android:name="capsule.profile.action.PACKAGEINSTALLER_CALLBACK" />
                 <action android:name="capsule.profile.action.OPEN_SETTINGS_IN_PROFILE" />
+                <action android:name="capsule.profile.action.OPEN_APP_DETAILS_IN_PROFILE" />
+                <action android:name="capsule.profile.action.REQUEST_NOTIFICATION_PERMISSION" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -156,10 +158,6 @@
         <service android:name=".services.FileShuttleService"
                 android:exported="true"
                 android:permission="android.permission.BIND_DEVICE_ADMIN" />
-
-        <!-- Ensures every CapsuleService is killed when the app is removed
-             from recent tasks -->
-        <service android:name=".services.KillerService" />
 
         <!-- Freezes apps on screen lock -->
         <service android:name=".services.FreezeService"

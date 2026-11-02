@@ -72,8 +72,9 @@ class DummyActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) {
-            appInstallFinishedIfInstalling()
-            init()
+            // Requested on demand when the Auto Freeze service is enabled;
+            // the grant state does not affect anything else in this activity.
+            finish()
         }
 
     // Set while the unknown-sources settings page is up, so returning from it
@@ -129,23 +130,6 @@ class DummyActivity : ComponentActivity() {
                 Utility.enforceWorkProfilePolicies(this)
                 Utility.enforceUserRestrictions(this)
                 SettingsManager.applyAll()
-            }
-
-            synchronized(DummyActivity::class.java) {
-                // Never ask during finalization; it conflicts with the
-                // provisioning UI. Ask once per process, inside the profile.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    !hasRequestedPermission &&
-                    FINALIZE_PROVISION != intent?.action
-                ) {
-                    hasRequestedPermission = true
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-                        PackageManager.PERMISSION_GRANTED
-                    ) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        return
-                    }
-                }
             }
         }
 
@@ -203,6 +187,12 @@ class DummyActivity : ComponentActivity() {
             }
             OPEN_SETTINGS_IN_PROFILE -> {
                 actionOpenSettingsInProfile()
+            }
+            OPEN_APP_DETAILS_IN_PROFILE -> {
+                actionOpenAppDetailsInProfile()
+            }
+            REQUEST_NOTIFICATION_PERMISSION -> {
+                actionRequestNotificationPermission()
             }
             SYNCHRONIZE_PREFERENCE -> {
                 actionSynchronizePreference()
@@ -295,6 +285,9 @@ class DummyActivity : ComponentActivity() {
         }
 
         // Foreground bind: this activity cannot hold the connection itself.
+        // No foreground notification: the main profile app keeps the bridge
+        // alive for exactly as long as it needs it, and its death recipient
+        // rebinds on the rare occasion the process is reclaimed anyway.
         (application as CapsuleApplication).bindCapsuleService(
             object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -310,13 +303,16 @@ class DummyActivity : ComponentActivity() {
                     // Nothing to do.
                 }
             },
-            true,
+            false,
         )
     }
 
     @Suppress("DEPRECATION")
     private fun actionInstallPackage() {
-        CapsuleLog.i("Installing package: package=${intent.getStringExtra("package")} apk=${intent.getStringExtra("apk")}")
+        CapsuleLog.i(
+            "Installing package: package=${intent.getStringExtra("package")} " +
+                "apk=${intent.getStringExtra("apk")} direct=${intent.hasExtra("direct_install_apk")}",
+        )
 
         // The unknown-sources consent must exist before the installer session
         // commits, so its prompt never pops up over the settings screen: ask
@@ -339,21 +335,30 @@ class DummyActivity : ComponentActivity() {
             return
         }
 
+        startInstallSession()
+    }
+
+    /** Drives the installer session from the picked APK or a package source. */
+    @Suppress("DEPRECATION")
+    private fun startInstallSession() {
         var uri: Uri? = null
         if (intent.hasExtra("package")) {
             uri = Uri.fromParts("package", intent.getStringExtra("package"), null)
         }
+
         val policy = StrictMode.getVmPolicy()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || intent.hasExtra("direct_install_apk")) {
+        if (intent.hasExtra("direct_install_apk")) {
+            // Install an APK streamed from the other profile through our
+            // FileProviderProxy. The unknown-sources consent was granted
+            // before the file picker was even opened, so no app op changes
+            // mid-install and the forwarded Fd survives the whole session.
+            uri = IntentCompat.getParcelableExtra(intent, "direct_install_apk", Uri::class.java)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || intent.hasExtra("apk")) {
             if (intent.hasExtra("apk")) {
                 // The "package:" scheme stopped working on Oreo; use the apk path.
                 intent.getStringExtra("apk")?.let { path ->
                     uri = Uri.fromFile(File(path))
                 }
-            } else if (intent.hasExtra("direct_install_apk")) {
-                // Install an APK streamed from the other profile via our
-                // FileProviderProxy. The Fd is released when we finish.
-                uri = IntentCompat.getParcelableExtra(intent, "direct_install_apk", Uri::class.java)
             }
 
             // Permissive VmPolicy to work around cross-application Uri checks.
@@ -494,10 +499,6 @@ class DummyActivity : ComponentActivity() {
         val uninstallIntent = Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri)
         uninstallIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true)
         packageActivityLauncher.launch(uninstallIntent)
-    }
-
-    private fun appInstallFinishedIfInstalling() {
-        if (!installProgress.isNaN()) installProgress = Float.NaN
     }
 
     private fun appInstallFinished(resultCode: Int) {
@@ -722,6 +723,46 @@ class DummyActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Opens the system App Info screen of one app in this profile. Called
+     * from the other profile's app action sheet, whose header doubles as a
+     * shortcut into the system settings.
+     */
+    private fun actionOpenAppDetailsInProfile() {
+        val packageName =
+            intent.getStringExtra("package") ?: run {
+                finish()
+                return
+            }
+        val details =
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", packageName, null),
+            )
+        try {
+            startActivity(details)
+        } catch (e: android.content.ActivityNotFoundException) {
+            CapsuleLog.w("The app details screen could not be opened", e)
+        }
+        finish()
+    }
+
+    /**
+     * Asks for the notification permission in this profile, so the Auto
+     * Freeze service's status notification can be shown. Requested when the
+     * user enables that service in the other profile's settings.
+     */
+    private fun actionRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            finish()
+        }
+    }
+
     private fun actionSynchronizePreference() {
         val name =
             intent.getStringExtra("name") ?: run {
@@ -776,6 +817,14 @@ class DummyActivity : ComponentActivity() {
         // to open travels in the "settings_action" string extra.
         const val OPEN_SETTINGS_IN_PROFILE = "capsule.profile.action.OPEN_SETTINGS_IN_PROFILE"
 
+        // Opens the system App Info screen of the app named in the "package"
+        // extra, in this profile.
+        const val OPEN_APP_DETAILS_IN_PROFILE = "capsule.profile.action.OPEN_APP_DETAILS_IN_PROFILE"
+
+        // Requests the notification permission in this profile; used when the
+        // Auto Freeze service is enabled from the other profile's settings.
+        const val REQUEST_NOTIFICATION_PERMISSION = "capsule.profile.action.REQUEST_NOTIFICATION_PERMISSION"
+
         // Callable from the other side without a signature (user-visible).
         private val ACTIONS_ALLOWED_WITHOUT_SIGNATURE =
             listOf(
@@ -791,8 +840,6 @@ class DummyActivity : ComponentActivity() {
                 UNINSTALL_PACKAGE,
                 UNFREEZE_AND_LAUNCH,
             )
-
-        private var hasRequestedPermission = false
 
         // Set once the profile-side policies have been asserted in this
         // process; DPM state persists, so re-asserting per bridge contact

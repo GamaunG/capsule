@@ -25,7 +25,6 @@
     <string name="settings_bug_report">Отслеживание проблем</string>
     <string name="provision_finished">Настройка Capsule завершена. Перезапускам Capsule. Если Capsule не откроется сам, запустите его из вашего лаучнера.</string>
     <string name="work_profile_not_found">Рабочий профиль не найден. Перезапустите приложение, чтобы пересоздать профиль.</string>
-    <string name="work_mode_disabled">Похоже, что вы отключили рабочий режим, пока Capsule запускался. Если вы включили его сейчас, то перезапустите Capsule.</string>
     <string name="clone_success">Приложение \"%s\" успешно клонировано</string>
     <string name="uninstall_success">Приложение \"%s\" успешно удалено</string>
     <string name="freeze_success">Приложение \"%s\" успешно заморожено</string>
@@ -34,7 +33,6 @@
     <string name="uninstall_fail_system_app">Невозможно удалить системные приложения в профиле, который Capsule не контролирует.</string>
     <string name="unsupported_launcher">Невозможно добавить ярлык в ваш лаунчер. Пожалуйста, свяжитесь с разработчиком.</string>
     <string name="freeze_all_success">Все приложения в списке автозаморозки были успешно заморожены.</string>
-    <string name="shortcut_create_success">Ярлык создан в вашем лаунчере.</string>
     <string name="miui_cannot_clone">Клонирование несистемных приложений в другой профиль в данный момент невозможно на MIUI. Пожалуйста, клонируйте магазин приложений вашей системы (например, <b>Play Маркет</b>) в ваш другой профиль и установите приложения оттуда.</string>
     <string name="finish_provision_title">Нажмите, чтобы завершить настройку Capsule</string>
     <string name="app_installing">Установка...</string>
@@ -50,7 +48,6 @@
     <string name="settings_auto_freeze_service">Служба автозаморозки</string>
     <string name="settings_auto_freeze_service_desc">При блокировке экрана автоматически замораживать приложения, запущенные с помощью ярлыка \"Разморозить и запустить\".</string>
     <string name="settings_auto_freeze_delay">Задержка автозаморозки</string>
-    <string name="request_storage_manager">Capsule необходим доступ ко <b>всем файлам</b> для переноса файлов. Пожалуйста, дайте разрешение приложениям Capsule в <b>ОБОИХ</b> профилях (основном и рабочем) в диалогах, которые появятся после того, как вы нажмёте \"OK\".</string>
     <string name="settings_services">Службы</string>
     <string name="continue_anyway">Всё равно продолжить</string>
     <string name="notifications_important">Capsule: важное</string>
@@ -58,14 +55,11 @@
     <string name="install_app_to_profile">Установить APK в Capsule</string>
     <string name="install_app_to_profile_success">Приложение установлено в рабочий профиль.</string>
     <string name="settings_block_contacts_searching">Не отслеживать контакты</string>
-    <string name="settings_translate">Перевод</string>
     <string name="settings_block_contacts_searching_desc">Запретить получение доступа к контактам рабочего профиля из основного профиля.</string>
     <string name="settings_cross_profile_file_chooser_desc">Если включено, вы сможете искать/просматривать/выбирать/копировать файлы в Capsule из рабочего профиля и обратно ТОЛЬКО через системный менеджер файлов (он называется \"Файлы\" или \"Документы\" на вашем устройстве) или через приложения, поддерживающие Documents UI (с помощью них возможно получить лишь временный доступ к файлам), при этом изоляция файловой системы останется нетронутой.</string>
     <string name="show_all_warning">Управление скрытыми в списке приложениями может привести к разного рода нестабильностям и сбоям, однако эта функция может оказаться полезной в случаях, когда в некачественно настроенных производителем прошивках не включены все необходимые системные приложения в рабочем профиле по умолчанию. Продолжайте на свой страх и риск.</string>
     <string name="settings_dont_freeze_foreground">Пропускать активные приложения</string>
     <string name="settings_dont_freeze_foreground_desc">Не замораживать приложение на переднем плане при блокировке экрана. Это может быть полезно для приложений типа аудиопроигрывателя, но вам придётся вручную замораживать их через ярлык \"Групповая заморозка\".</string>
-    <string name="request_system_alert">Capsule необходимо разрешение на <b>отображение поверх других приложений</b> для того, чтобы функция переноса файлов работала корректно. Пожалуйста, дайте разрешение приложениям Capsule в <b>ОБОИХ</b> профилях (основном и рабочем) в диалогах, которые появятся после того, как вы нажмёте \"OK\". Это разрешение необходимо для того, чтобы перенос файлов мог работать в фоновом режиме.</string>
-    <string name="request_usage_stats">Для этого Capsule необходим доступ к <b>истории использования приложений</b>. Пожалуйста, дайте разрешение приложениям Capsule в <b>ОБОИХ</b> профилях (основном и рабочем) в диалогах, которые появятся после того, как вы нажмёте \"OK\". В противном случае эта возможность не будет работать правильно.</string>
     <string name="launch_app_fail">Невозможно запустить приложение %s, так как оно не имеет графического интерфейса.</string>
     <string name="service_auto_freeze_desc">Capsule автоматически заморозит приложения, запущенные с помощью \"Разморозить и запустить\" при следующей блокировке экрана.</string>
     <string name="setup_wizard_welcome">Добро пожаловать в Capsule</string>

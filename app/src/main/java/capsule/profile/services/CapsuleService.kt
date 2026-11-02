@@ -16,12 +16,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import capsule.profile.CapsuleApplication
-import capsule.profile.R
 import capsule.profile.receivers.CapsuleDeviceAdminReceiver
 import capsule.profile.ui.DummyActivity
 import capsule.profile.util.ApplicationInfoWrapper
 import capsule.profile.util.CapsuleLog
 import capsule.profile.util.FileProviderProxy
+import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.UriForwardProxy
 import capsule.profile.util.Utility
 import kotlinx.coroutines.CoroutineScope
@@ -92,7 +92,14 @@ class CapsuleService : Service() {
                     for (info in installed) {
                         if (info.packageName == packageName) continue
                         val wrapper = ApplicationInfoWrapper(info).loadLabel(packageManagerRef)
-                        val hidden = isHidden(info.packageName)
+                        // A per-app isApplicationHidden binder call dominated the
+                        // listing time on the work side. The package list already
+                        // knows the answer: present in this MATCH_UNINSTALLED
+                        // query but not flagged installed means hidden for this
+                        // user, which is exactly what the freeze state is.
+                        val hidden =
+                            isProfileOwner &&
+                                (info.flags and ApplicationInfo.FLAG_INSTALLED) == 0
                         wrapper.setHidden(hidden)
 
                         // A hidden system app counts as "not installed": it
@@ -238,6 +245,11 @@ class CapsuleService : Service() {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
                 return Utility.checkAllFileAccessPermission()
             }
+
+            override fun hasInstallPermission(): Boolean =
+                // The unknown-sources consent only exists as an app op since O.
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                    packageManager.canRequestPackageInstalls()
 
             override fun getCrossProfileWidgetProviders(): List<String> {
                 check(isProfileOwner) { "Cannot access cross-profile widget providers without being profile owner" }
@@ -487,54 +499,11 @@ class CapsuleService : Service() {
         }
     }
 
-    override fun onBind(intent: Intent): IBinder {
-        if (intent.getBooleanExtra("foreground", false)) {
-            setForeground()
-        }
-        return binder
-    }
-
-    override fun onUnbind(intent: Intent): Boolean {
-        // Drop the foreground notification once all clients disconnect.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
-        return false
-    }
-
-    private fun isHidden(packageName: String): Boolean =
-        isProfileOwner && policyManager.isApplicationHidden(adminComponent, packageName)
-
-    private fun setForeground() {
-        val notification =
-            Utility.buildNotification(
-                this,
-                important = false,
-                ticker = getString(R.string.app_name),
-                title = getString(R.string.service_title),
-                desc = getString(R.string.service_desc),
-                icon = R.drawable.ic_notification,
-            )
-        // An explicit type keeps system_server from logging a typeless
-        // foreground-service complaint on API 34+.
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
-    }
+    override fun onBind(intent: Intent): IBinder = binder
 
     companion object {
         const val RESULT_CANNOT_INSTALL_SYSTEM_APP = 100001
         const val RESULT_ALREADY_EXISTS = 100002
         const val RESULT_CANNOT_ENABLE_SYSTEM_APP = 100003
-        private const val NOTIFICATION_ID = 0xC9A11
     }
 }

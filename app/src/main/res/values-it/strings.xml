@@ -38,7 +38,6 @@
     <string name="settings_dont_freeze_foreground">Tralascia le app in primo piano</string>
     <string name="settings_version">Versione</string>
     <string name="settings_source_code">Codice sorgente</string>
-    <string name="settings_translate">Traduci</string>
     <string name="work_profile_not_found">Profilo di lavoro non trovato. Si prega di riavviare l\'app per ricreare il profilo.</string>
     <string name="clone_success">Applicazione \"%s\" clonata correttamente</string>
     <string name="uninstall_success">App \"%s\" disinstallata correttamente</string>
@@ -47,16 +46,13 @@
     <string name="clone_fail_system_app">Non è possibile clonare le app di sistema su un profilo di cui Capsule non ha controllo.</string>
     <string name="unsupported_launcher">Non è possibile aggiungere una scorciatoia. Si prega di contattare lo sviluppatore per maggiori informazioni.</string>
     <string name="freeze_all_success">Tutte le app nella lista \"Auto-congela\" sono state congelate correttamente.</string>
-    <string name="shortcut_create_success">Scorciatoia creata correttamente nel launcher.</string>
     <string name="launch_app_fail">Non è possibile avviare l\'app %s perché non ha alcuna interfaccia utente.</string>
-    <string name="request_system_alert">Capsule ha bisogno di <b>Disegnare sopra le altre applicazioni</b> per far funzionare lo Shuttle dei file correttamente. Attiva <b>ENTRAMBE</b> le app di Capsule (Personale / Lavorativo) mostrate nella finestra dopo aver premuto \"Ok\". Questa autorizzazione è usata per avviare i servizi dello Shuttle dei file in secondo piano.</string>
     <string name="continue_anyway">Continua comunque</string>
     <string name="show_all_warning">Manipolare le app nascoste dalla lista può causare crash e ogni tipo di comportamento inaspettato. Tuttavia, questa funzionalità può essere utile quando le ROM personalizzate in modo errato non attivano in modo predefinito tutte le app di sistema necessarie nel profilo lavorativo. Se continui, ti assumi la responsabilità delle tue azioni.</string>
     <string name="provision_finished">Configurazione di Capsule completata. Capsule verrà riavviato. Se Capsule non si avvia automaticamente, riaprilo a mano.</string>
     <string name="miui_cannot_clone">La clonazione di app non di sistema su un altro profilo attualmente non è possibile su MIUI. Si prega di clonare il negozio delle app (es. <b>Play Store</b>) nell\'altro profilo e poi installarle da lì.</string>
     <string name="service_auto_freeze_desc">Capsule congelerà automaticamente le app avviate da \"Scongela e avvia\" al prossimo blocco schermo.</string>
     <string name="settings_cross_profile_file_chooser_desc">Quando attivo, potrai sfogliare / vedere / selezionare / copiare i file in Capsule dal profilo principale e viceversa, SOLO tramite l\'interfaccia dei documenti (chiamata File o Documenti nel tuo launcher) o tramite le app con il supporto all\'interfaccia dei documenti (ottengono accesso solo temporaneo ai file che scegli), mantenendo al contempo l\'isolamento del filesystem.</string>
-    <string name="work_mode_disabled">Sembra che tu abbia disattivato la modalità lavorativa mentre avviavi Capsule. Se la attivi adesso, riavvia Capsule.</string>
     <string name="list_item_disabled">[Congelata] %s</string>
     <string name="uninstall_fail_system_app">Non è possibile disinstallare le app di sistema in un profilo di cui Capsule non ha controllo.</string>
     <string name="batch_operation">Operazione in massa</string>
@@ -64,10 +60,8 @@
     <string name="create_freeze_all_shortcut">Crea una scorciatoia di congelamento in massa</string>
     <string name="install_app_to_profile">Installa l\'APK in Capsule</string>
     <string name="settings_dont_freeze_foreground_desc">NON congelare le app in primo piano (con attività visibile) quando si blocca lo schermo. Ciò può essere utile per app come i riproduttori musicali, ma poi dovrai congelarle a mano tramite \"Scorciatoia di congelamento in massa\".</string>
-    <string name="request_usage_stats">Capsule ha bisogno dell\'autorizzazione <b>Statistiche d\'uso</b> per farlo. Attiva l\'autorizzazione per <b>ENTRAMBE</b> le app di Capsule mostrate nella finestra dopo aver premuto \"Ok\". Altrimenti questa funzione non funzionerà correttamente.</string>
     <string name="install_app_to_profile_success">L\'installazione dell\'app nel profilo lavorativo è finita.</string>
     <string name="settings_about">Al riguardo</string>
-    <string name="request_storage_manager">Capsule ha bisogno dell\'accesso a <b>Tutti i file</b> per lo Shuttle dei file. Attiva l\'autorizzazione per <b>ENTRAMBE</b> le app di Capsule (Personale / Lavorativo) mostrate nella finestra dopo aver premuto \"Ok\".</string>
     <string name="setup_wizard_failed">Configurazione fallita</string>
     <string name="setup_wizard_action_required">Azione richiesta</string>
     <string name="setup_wizard_compatibility_text">Capsule viene sviluppato e testato su derivate AOSP-like di Android . Ciò include AOSP (Android Open Source Project), Google Android (sui Pixel) e <b>la maggior parte delle ROM open-source basate su AOSP</b> come LineageOS. Se il tuo telefono utilizza una delle derivate di Android elencate sopra, congratulazioni! Capsule probabilmente funzionerà correttamente sul tuo dispositivo.

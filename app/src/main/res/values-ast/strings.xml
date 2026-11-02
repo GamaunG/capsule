@@ -81,9 +81,7 @@
     <string name="settings_about">Tocante a</string>
     <string name="settings_version">Versión</string>
     <string name="settings_source_code">Códigu fonte</string>
-    <string name="settings_translate">Traducción</string>
     <string name="settings_bug_report">Rastrexador de fallos</string>
-    <string name="work_mode_disabled">Paez que desactivesti\'l perfil de trabayu mentanto s\'aniciaba Capsule. Si actives el perfil agora, volvi aniciar Capsule.</string>
     <string name="clone_success">L\'aplicación «%s» clonóse con ésitu</string>
     <string name="uninstall_success">L\'aplicación «%s» desinstalóse con ésitu</string>
     <string name="freeze_success">L\'aplicación «%s» desactivóse con ésitu</string>
@@ -92,11 +90,7 @@
     <string name="uninstall_fail_system_app">Nun puen desinstalase les aplicaciones d\'un perfil nel que Capsule nun tien el control.</string>
     <string name="unsupported_launcher">Nun puen amestase atayos al llanzador. Ponte en contautu col desendolcador pa consiguir más información, por favor.</string>
     <string name="freeze_all_success">Toles aplicaciones de la llista «Desactivación automática» desactiváronse con ésitu.</string>
-    <string name="shortcut_create_success">L\'atayu creóse nel llanzador.</string>
-    <string name="request_usage_stats">Capsule precisa\'l permisu <b>Estadístiques d\'usu</b> pa facer esto. Activa\'l permisu pa les instancies de Capsule <b>DE LOS DOS PERFILES</b> nel diálogu qu\'apaez dempués de primir «D\'acuerdu». Si nun lo faes, carauterística nun va funcionar afayadizamente.</string>
     <string name="launch_app_fail">Nun pue llanzase l\'aplicación %s porque nun tien nenguna interfaz gráfica.</string>
-    <string name="request_storage_manager">Capsule tien d\'acceder a <b>Tolos ficheros</b> pa la pasera de ficheros. Activa\'l permisu pa les instancies de Capsule <b>DE LOS DOS PERFILES</b> nel diálogu qu\'apaez dempués de primir «D\'acuerdu».</string>
-    <string name="request_system_alert">Capsule tien de <b>superponese a otres aplicaciones</b> pa que la pasera de ficheros funcione correutamente. Activa\'l permisu pa les instancies de Capsule <b>DE LOS DOS PERFILES</b> nel diálogu qu\'apaez dempués de primir «D\'acuerdu». Esti permisu úsase p\'aniciar los servicios de la pasera de ficheros en segundu planu.</string>
     <string name="miui_cannot_clone">Anguaño, en MIUI, nun ye posible la clonación de les aplicaciones que nun son del sistema a otru perfil. Clona la tienda d\'aplicaciones del sistema al perfil aisláu y dempués instala les aplicaciones dende ehí, por favor.</string>
     <string name="continue_anyway">Siguir de toes toes</string>
     <string name="setup_wizard_permissions_text">Por defeutu, Capsule nun pide nengún permisu. Por embargu, al siguir col procesu de configuración, Capsule va configurar el perfil de trabayu y convertise nel <b>xestor d\'esi perfil</b>.

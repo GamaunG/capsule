@@ -62,6 +62,7 @@ import capsule.profile.ui.icons.apps
 import capsule.profile.ui.icons.bolt
 import capsule.profile.ui.icons.delete
 import capsule.profile.ui.icons.done
+import capsule.profile.ui.icons.info
 import capsule.profile.ui.icons.lock_open
 import capsule.profile.ui.icons.play_arrow
 import capsule.profile.ui.icons.shield_person
@@ -80,6 +81,7 @@ fun AppListPage(
     otherPackages: () -> Set<String>,
     modifier: Modifier = Modifier,
     cloneAvailable: Boolean = true,
+    onOpenAppInfo: (ApplicationInfoWrapper) -> Unit = {},
 ) {
     val context = LocalContext.current
     var sheetApp by remember { mutableStateOf<ApplicationInfoWrapper?>(null) }
@@ -193,6 +195,7 @@ fun AppListPage(
             state = state,
             otherPackages = otherPackages,
             cloneAvailable = cloneAvailable,
+            onOpenAppInfo = { onOpenAppInfo(app) },
             onDismiss = { sheetApp = null },
             onClone = {
                 sheetApp = null
@@ -431,6 +434,7 @@ private fun AppActionsSheet(
     state: AppListState,
     otherPackages: () -> Set<String>,
     cloneAvailable: Boolean,
+    onOpenAppInfo: () -> Unit,
     onDismiss: () -> Unit,
     onClone: () -> Unit,
     onUninstall: () -> Unit,
@@ -459,7 +463,7 @@ private fun AppActionsSheet(
         Column(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
-            SheetHeader(app)
+            SheetHeader(app, onOpenAppInfo)
             if (state.isRemote) {
                 if (!app.isSystem() && !inOtherProfile) {
                     SheetAction(
@@ -559,11 +563,16 @@ private fun AppActionsSheet(
 }
 
 @Composable
-private fun SheetHeader(app: ApplicationInfoWrapper) {
+private fun SheetHeader(
+    app: ApplicationInfoWrapper,
+    onOpenAppInfo: () -> Unit,
+) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenAppInfo)
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -580,6 +589,12 @@ private fun SheetHeader(app: ApplicationInfoWrapper) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // The whole header opens the system App Info screen.
+        Icon(
+            imageVector = info,
+            contentDescription = stringResource(R.string.open_app_info),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

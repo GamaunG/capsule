@@ -24,6 +24,7 @@ interface ICapsuleService {
     boolean hasUsageStatsPermission();
     boolean hasSystemAlertPermission();
     boolean hasAllFileAccessPermission();
+    boolean hasInstallPermission();
     List<String> getCrossProfileWidgetProviders();
     boolean hasWidgetProviders(String packageName);
     boolean setCrossProfileWidgetProviderEnabled(String pkgName, boolean enabled);

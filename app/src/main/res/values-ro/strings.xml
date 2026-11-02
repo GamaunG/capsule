@@ -6,15 +6,12 @@
     <string name="settings_about">Despre</string>
     <string name="settings_version">Versiune</string>
     <string name="settings_source_code">Codul Sursa</string>
-    <string name="settings_translate">Traducere</string>
     <string name="settings_bug_report">Raportare eroare / Urmarirea erorilor</string>
     <string name="clone_success">Aplicatia \"%s\" a fost clonata cu succes</string>
     <string name="settings_dont_freeze_foreground_desc">NU ingheta aplicatiile din Prim-Plan (cu activitate vizibila) cand blocati ecranul. Acest lucru poate fi util pentru aplicatii precum playere de muzica, dar va trebui să le înghetati manual prin „Comandă rapidă de Inghetare Grup(lot)” dupa aceea.</string>
     <string name="provision_finished">Configurarea Capsule s-a incheiat. Acum reporniti Capsule. Daca Capsule nu a pornit automat, il puteți porni din nou manual.</string>
     <string name="show_all_warning">Manipularea aplicațiilor ascunse din listă ar putea provoca blocări și tot felul de comportamente neașteptate. De asemenea această caracteristică poate fi utilă atunci când ROM-urile defecte personalizate de furnizor nu activează în mod implicit toate aplicațiile de sistem necesare în profilul de lucru. Dacă continuați, sunteți pe cont propriu.</string>
     <string name="settings_cross_profile_file_chooser_desc">Când este activat, veți putea răsfoi / vizualiza / alege / copia fișiere în Capsule din profilul principal și invers, DOAR prin interfața de utilizare a documentelor (denumită Fișiere sau documente pe launcher-ul dvs.) sau aplicații cu suport pentru interfața de utilizare a documentelor (acestea câștigă numai acces temporar la fișierele pe care le alegeți în interfața de utilizare Documente), în timp ce aparține încă izolării sistemului de fișiere.</string>
-    <string name="request_usage_stats">Capsule are nevoie de permisiunea <b> Statistici de utilizare </b> pentru a face acest lucru. Activați permisiunea pentru <b> AMBELE </b> aplicații Capsule afișate în casetă de dialog după ce apăsați „Ok”. În caz contrar, această caracteristică nu va funcționa corect.</string>
-    <string name="request_system_alert">Capsule trebuie să <b> Afiseze peste alte aplicații </b> pentru ca File Shuttle să funcționeze corect. Vă rugăm să activați permisiunea pentru <b> AMBELE </b> (Principal / Lucru) aplicații Capsule afișate în caseta de dialog după ce apăsați „Ok”. Această permisiune este utilizată pentru a porni serviciile File Shuttle în fundal.</string>
     <string name="create_freeze_all_shortcut">Creați o comandă rapidă de Inghetare Grup(lot)</string>
     <string name="notifications_important">Important</string>
     <string name="finish_provision_title">Click aici pentru a finaliza configurarea Capsule</string>
@@ -46,8 +43,6 @@
     <string name="install_app_to_profile_success">Instalarea aplicației a fost finalizată în Profilul de Lucru.</string>
     <string name="show_all">Afișați toate Aplicațiile</string>
     <string name="documents_ui">Deschideți Interfața de Utilizare a Documentelor</string>
-    <string name="work_mode_disabled">Se pare că ați dezactivat Profilul de Lucru în timp ce porniți Capsule. Dacă l-ați activat acum, porniți din nou Capsule.</string>
-    <string name="request_storage_manager">Capsule are nevoie de acces la <b> Toate fișierele </b> pentru File Shuttle. Vă rugăm să activați permisiunea pentru <b> AMBELE </b> (Principal/ Lucru) aplicații Capsule afișate în caseta de dialog după ce apăsați „Ok”.</string>
     <string name="settings_block_contacts_searching">Blocați Căutarea Contactelor</string>
     <string name="settings_services">Servicii</string>
     <string name="uninstall_success">Aplicația \"%s\" a fost dezinstalată cu succes</string>
@@ -57,7 +52,6 @@
     <string name="uninstall_fail_system_app">Nu se pot dezinstala aplicațiile de sistem într-un profil pe care Capsule nu îl controlează.</string>
     <string name="unsupported_launcher">Nu se pot adăuga comenzi rapide la launcher-ul dvs. Vă rugăm să contactați dezvoltatorul pentru mai multe informații.</string>
     <string name="freeze_all_success">Toate aplicațiile din lista „Inghetare Automata” au fost înghețate cu succes.</string>
-    <string name="shortcut_create_success">Comandă rapidă creată pe launcher.</string>
     <string name="launch_app_fail">Nu se poate porni %s deoarece nu are GUI.</string>
     <string name="settings_block_contacts_searching_desc">Refuzați accesul din Profilul Principal la contactele din Profilul de Lucru.</string>
     <string name="settings_auto_freeze_service">Serviciu de înghețare Automată</string>

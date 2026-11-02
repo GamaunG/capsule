@@ -33,7 +33,6 @@
     <string name="settings_cross_profile_file_chooser_desc">Si activé, vous pourrez parcourir / afficher / sélectionner / copier des fichiers dans Capsule depuis le Profil Principal et vice-versa. UNIQUEMENT via l\'application Documents (nommée Fichiers ou Documents dans votre lanceur d\'applications) ou via des applications supportant la gestion de Documents (elles n\'obtiennent qu\'un accès temporaire aux fichiers à choisir), tout en concervant l\'isolation du système de fichiers.</string>
     <string name="settings_dont_freeze_foreground_desc">Ne PAS geler les applications en premier plan (avec une activité visible) quand l\'écran est verrouillé. Cela peut être utile pour des applications telles que des lecteurs de musique, mais vous devrez ensuite les geler depuis \"Raccourci de Gel par Lots\".</string>
     <string name="provision_finished">Configuration de Capsule complète. L\'application redémarre. Si Capsule ne redémarre pas automatiquement, vous pouvez le lancer depuis votre Lanceur d\'Applications.</string>
-    <string name="work_mode_disabled">Il semble que vous ayez désactivé le Mode de Travail en démarrant Capsule. Si vous l\'avez activé maintenant, veuillez redémarrer Capsule.</string>
     <string name="list_item_disabled">[Gelé] %s</string>
     <string name="show_all">Afficher Toutes les Applications</string>
     <string name="settings">Paramètres</string>
@@ -57,14 +56,9 @@
     <string name="clone_fail_system_app">Impossible de cloner des applications système vers un profil sur lequel Capsule n\'a aucun contrôle.</string>
     <string name="uninstall_fail_system_app">Impossible de désinstaller les applications système dans un profil sur lequel Capsule n\'a aucun contrôle.</string>
     <string name="documents_ui">Ouvrir la Navigation de Documents</string>
-    <string name="settings_translate">Traduire</string>
     <string name="unsupported_launcher">Impossible d\'ajouter de raccourcis à votre lanceur d\'applications. Veuillez contacter le développeur pour plus d\'informations.</string>
     <string name="freeze_all_success">Toutes les applications de la liste \"Gel Automatique\" ont été gelées avec succès.</string>
-    <string name="shortcut_create_success">Raccourci créé sur votre lanceur d\'applications.</string>
-    <string name="request_usage_stats">Capsule à besoin de la permission <b>Statistiques d\'Usage</b> pour faire ça. S\'il vous plaît activez la permission pour <b>LES DEUX</b> applications Capsule dans la boite de dialogue affichée après avoir appuyé sur \"Ok\". Sinon cette fonctionnalité de pourra pas fonctionner correctement.</string>
     <string name="launch_app_fail">Impossible de lancer l\'application %s car elle n\'a pas d\'interface graphique.</string>
-    <string name="request_storage_manager">Capsule doit accéder à <b>Tous les Fichiers</b> pour la Navigation de Fichiers. Veuillez activer l\'autorisation pour <b>LES DEUX</b> applications Capsule (personnelle / professionnelle) dans la boîte de dialogue affichée après avoir appuyé sur \"Ok\".</string>
-    <string name="request_system_alert">Capsule doit <b>Dessiner par dessus les autres applications</b> pour que la Navigation de Fichier fonctionne correctement. Veuillez activer l\'autorisation pour <b>LES DEUX</b> applications Capsule (personnelle / professionnelle) dans la boîte de dialogue affichée après avoir appuyé sur \"Ok\". Cette autorisation est utilisée pour démarrer les services de Navigation de Fichiers en arrière-plan.</string>
     <string name="miui_cannot_clone">Le clonage d\'applications non système vers un autre profil n\'est actuellement pas possible sur MIUI. Veuillez cloner la boutique d\'applications de votre système (par exemple, &lt;b&gt;Play Store&lt;/b&gt;) dans l\'autre profil, puis installer les applications à partir de là.<b>Play Store</b>) into the other profile and then install apps from there.</string>
     <string name="continue_anyway">Continuer quand même</string>
     <string name="settings_cross_profile_file_chooser">Navigation de Documents</string>

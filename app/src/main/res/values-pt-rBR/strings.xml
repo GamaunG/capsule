@@ -46,7 +46,6 @@
     <string name="settings_source_code">Código-fonte</string>
     <string name="provision_finished">Configuração do Capsule concluída. Reiniciando o Capsule. Se o Capsule não iniciar automaticamente, você pode executá-lo novamente do seu lançador.</string>
     <string name="work_profile_not_found">Perfil de trabalho não foi encontrado. Por favor reinicie o app para verificar o perfil de novo.</string>
-    <string name="work_mode_disabled">Parece que você desativou o Perfil de Trabalho ao iniciar o Capsule. Se você tiver ativado agora, por favor, reinicie o Capsule.</string>
     <string name="uninstall_success">O app \"%s\" foi desinstalado com sucesso</string>
     <string name="freeze_success">O app \"%s\" foi suspenso com sucesso</string>
     <string name="unfreeze_success">O app \"%s\" foi reativado com sucesso</string>
@@ -54,8 +53,6 @@
     <string name="uninstall_fail_system_app">Não é possível desinstalar os apps de sistema do perfil sobre qual o Capsule não tem controle.</string>
     <string name="unsupported_launcher">Não é possível adicionar os atalhos ao seu lançador. Entre em contato com o desenvolvedor para mais detalhes.</string>
     <string name="freeze_all_success">Todos os apps na lista de \"Auto-Suspensão\" foram suspensos com sucesso.</string>
-    <string name="shortcut_create_success">Atalho foi criado no seu lançador.</string>
-    <string name="request_usage_stats">O Capsule precisa de permissão para <b>Estatísticas de uso</b> para fazer isto. Por favor ative a permissão para <b>AMBOS</b> os apps do Capsule que aparecerão no diálogo após clicar no \"Ok\". Se isso não for feito, este recurso não funcionará corretamente.</string>
     <string name="launch_app_fail">Não podia iniciar o app %s porque não tem interface.</string>
     <string name="miui_cannot_clone">A clonagem de apps fora do sistema para outro perfil não é suportado no MIUI. Por favor, clone a loja de apps do seu sistema (p.ex. a <b>Play Store</b>) ao outro perfil e depois instale os apps a partir daí.</string>
     <string name="settings_interaction">Interação</string>
@@ -63,10 +60,7 @@
     <string name="documents_ui">Abrir interface de Documentos</string>
     <string name="settings_block_contacts_searching">Bloquear a pesquisa em contatos</string>
     <string name="settings_block_contacts_searching_desc">Negar o acesso do perfil principal aos contatos no perfil de trabalho.</string>
-    <string name="settings_translate">Traduzir</string>
     <string name="settings_bug_report">Relatar as falhas / problemas</string>
-    <string name="request_storage_manager">O Capsule precisa ter acesso a <b>Todos os arquivos</b> para poder usar a Transferência de arquivos. Por favor ative a permissão para <b>AMBOS</b> (Pessoal / Trabalho) apps do Capsule que aparecerão no diálogo após clicar no \"Ok\".</string>
-    <string name="request_system_alert">O Capsule precisa <b>Exibir sobre outros apps</b> para que a Transferência de arquivos funcione corretamente. Por favor ative a permissão para <b>Ambos</b> (Pessoal / Trabalho) apps do Capsule que aparecerão no diálogo após clicar no \"Ok\". Esta permissão é usada para iniciar os serviços de Transferência de arquivos em segundo plano.</string>
     <string name="continue_anyway">Quero continuar</string>
     <string name="setup_wizard_welcome">Bem-vindo ao Capsule</string>
     <string name="setup_wizard_permissions">Detalhes sobre as permissões</string>

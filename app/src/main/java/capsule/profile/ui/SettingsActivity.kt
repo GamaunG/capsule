@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.UserManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,7 +25,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +37,7 @@ import androidx.lifecycle.lifecycleScope
 import capsule.profile.BuildConfig
 import capsule.profile.R
 import capsule.profile.services.ICapsuleService
+import capsule.profile.ui.DummyActivity
 import capsule.profile.ui.components.AppDialog
 import capsule.profile.ui.components.AppSnackbarHost
 import capsule.profile.ui.components.AppTextField
@@ -61,7 +62,10 @@ import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.CapsuleLog
 import capsule.profile.util.SettingsManager
 import capsule.profile.util.Utility
+import capsule.profile.util.WorkServiceHolder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -70,7 +74,11 @@ import java.security.cert.X509Certificate
 import java.text.DateFormat
 
 class SettingsActivity : ComponentActivity() {
-    private var serviceWork: ICapsuleService? = null
+    // Read live from the holder: a binder snapshot handed over through the
+    // intent would silently go stale whenever the work-profile bridge dies
+    // or rebinds while this screen is open.
+    private val serviceWork: ICapsuleService?
+        get() = WorkServiceHolder.binder
 
     // Messages from non-composable callbacks land here.
     private val snackbarHostState =
@@ -101,7 +109,7 @@ class SettingsActivity : ComponentActivity() {
     private var chainTarget: (() -> Unit)? = null
 
     /** The gate whose settings screen or dialog is currently up. */
-    private var pendingGate: PermissionGate? = null
+    private var pendingGate by mutableStateOf<PermissionGate?>(null)
 
     /** One installed CA certificate with display metadata. */
     private data class InstalledCert(
@@ -116,26 +124,25 @@ class SettingsActivity : ComponentActivity() {
     private var certBusy by mutableStateOf(false)
     private var certToRemove by mutableStateOf<InstalledCert?>(null)
 
+    // Cancels a superseded certificate load (re-entry, resume).
+    private var certLoadJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val extras: Bundle? =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                intent?.getParcelableExtra("extras", Bundle::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                intent?.getBundleExtra("extras")
-            }
-        serviceWork =
-            extras
-                ?.getBinder("profile_service")
-                ?.let { ICapsuleService.Stub.asInterface(it) }
 
         setContent {
             CapsuleTheme {
                 SettingsScreen()
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Entering the screen and returning from other apps both refresh the
+        // list: the profile may have been paused, toggled or re-enabled while
+        // we were away.
+        reloadCerts()
     }
 
     private val mainPermissionLauncher: ActivityResultLauncher<Intent> =
@@ -146,6 +153,13 @@ class SettingsActivity : ComponentActivity() {
     private val workPermissionLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             advancePermissionChain()
+        }
+
+    // The Auto Freeze notification permission is asked once, when the service
+    // is enabled; its result does not change any flow in this screen.
+    private val workNotificationPermissionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            // Nothing to do: enabling the service does not depend on it.
         }
 
     private val selectCert: ActivityResultLauncher<Array<String>> =
@@ -234,6 +248,24 @@ class SettingsActivity : ComponentActivity() {
         advancePermissionChain()
     }
 
+    /**
+     * Asks the work profile instance for the notification permission, so the
+     * Auto Freeze service's status notification (the thing that keeps its
+     * watcher alive) can actually be seen. No other feature needs it.
+     */
+    private fun requestWorkNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val intent = Intent(DummyActivity.REQUEST_NOTIFICATION_PERMISSION)
+        try {
+            Utility.transferIntentToProfile(this, intent)
+            workNotificationPermissionLauncher.launch(intent)
+        } catch (e: IllegalStateException) {
+            // The work profile is unreachable; the service still works, only
+            // its notification stays hidden.
+            CapsuleLog.w("Could not reach the work profile for the notification permission", e)
+        }
+    }
+
     /** Launches the settings screen backing [gate], on the right profile. */
     private fun launchGate(gate: PermissionGate) {
         if (gate.workSide) {
@@ -252,25 +284,62 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    /** Reloads the installed certificate list from the work profile. */
+    /**
+     * Reloads the installed certificate list from the work profile. The
+     * bridge may still be reconnecting (e.g. right after the profile was
+     * toggled) and the profile user may not have finished unlocking — its
+     * trust store then reads empty — so both conditions are retried briefly
+     * instead of publishing a misleading "none installed".
+     */
     private fun reloadCerts() {
-        val work = serviceWork
-        if (work == null) {
-            certs = null
-            return
-        }
-        lifecycleScope.launch {
-            val loaded =
-                withContext(Dispatchers.IO) {
-                    try {
-                        work.installedCaCerts.mapNotNull { bundle -> parseCert(bundle.getByteArray("cert") ?: return@mapNotNull null) }
-                    } catch (e: Exception) {
-                        CapsuleLog.w("Failed to list the installed certificates", e)
-                        null
+        certLoadJob?.cancel()
+        certLoadJob =
+            lifecycleScope.launch {
+                var loaded: List<InstalledCert>? = null
+                repeat(CERT_LOAD_ATTEMPTS) { attempt ->
+                    val work = serviceWork
+                    if (work != null) {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val list =
+                                        work.installedCaCerts.mapNotNull { bundle ->
+                                            parseCert(bundle.getByteArray("cert") ?: return@mapNotNull null)
+                                        }
+                                    // An empty list from a profile user that is
+                                    // still unlocking is a lie: retry it.
+                                    if (list.isEmpty() && isWorkUserLocked()) null else list
+                                } catch (e: Exception) {
+                                    CapsuleLog.w("Failed to list the installed certificates", e)
+                                    null
+                                }
+                            }
+                        if (result != null) {
+                            certs = result
+                            return@launch
+                        }
+                        loaded = result
+                    }
+                    if (attempt < CERT_LOAD_ATTEMPTS - 1) {
+                        delay(CERT_LOAD_RETRY_MS)
                     }
                 }
-            certs = loaded
-        }
+                certs = loaded
+            }
+    }
+
+    private companion object {
+        /** Attempts and spacing for the initial certificate list load. */
+        const val CERT_LOAD_ATTEMPTS = 4
+        const val CERT_LOAD_RETRY_MS = 1_500L
+    }
+
+    /** True while the work profile user exists but is still unlocking. */
+    private fun isWorkUserLocked(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        val manager = getSystemService(UserManager::class.java)
+        val user = Utility.getWorkProfileUserHandle(this) ?: return false
+        return !manager.isUserUnlocked(user)
     }
 
     /** Installs the certificate file behind [uri] into the profile store. */
@@ -382,7 +451,9 @@ class SettingsActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(Unit) { reloadCerts() }
+        // The certificate list is loaded from onResume: it covers both
+        // entering the screen and returning to it after permission detours
+        // or profile toggles.
 
         Scaffold(
             topBar = {
@@ -460,6 +531,7 @@ class SettingsActivity : ComponentActivity() {
                     ) {
                         manager.setAutoFreezeServiceEnabled(it)
                         autoFreeze = it
+                        if (it) requestWorkNotificationPermission()
                     }
                     SettingActionRow(
                         title = stringResource(R.string.settings_auto_freeze_delay),
@@ -481,11 +553,11 @@ class SettingsActivity : ComponentActivity() {
                         title = stringResource(R.string.cert_install),
                         desc = stringResource(R.string.cert_install_desc),
                         icon = verified,
-                        enabled = serviceWork != null && !certBusy,
+                        enabled = WorkServiceHolder.available && !certBusy,
                         onClick = { selectCert.launch(arrayOf("*/*")) },
                     )
                     val certList = certs
-                    if (serviceWork != null && certList != null) {
+                    if (WorkServiceHolder.available && certList != null) {
                         if (certList.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.cert_none),

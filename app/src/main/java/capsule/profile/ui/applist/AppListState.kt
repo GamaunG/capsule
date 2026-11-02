@@ -153,6 +153,19 @@ class AppListState(
                         withContext(Dispatchers.Main) { refreshing = false }
                         return@launch
                     }
+
+                    // Publish to the UI first: everything below is
+                    // housekeeping and must never delay the fresh data.
+                    withContext(Dispatchers.Main) {
+                        apps = list
+                        if (isRemote) {
+                            reloadAutoFreezeList()
+                            reloadShortcutFreezeExemptions()
+                        }
+                        fromCache = false
+                        loading = false
+                        refreshing = false
+                    }
                     if (isRemote) {
                         withContext(Dispatchers.IO) {
                             loadCrossProfileListsLocked()
@@ -171,16 +184,6 @@ class AppListState(
                             iconCache[app.packageName]?.let { icons[app.packageName] = it }
                         }
                         cache?.save(list, icons)
-                    }
-                    withContext(Dispatchers.Main) {
-                        apps = list
-                        if (isRemote) {
-                            reloadAutoFreezeList()
-                            reloadShortcutFreezeExemptions()
-                        }
-                        fromCache = false
-                        loading = false
-                        refreshing = false
                     }
                 } catch (e: RemoteException) {
                     withContext(Dispatchers.Main) {

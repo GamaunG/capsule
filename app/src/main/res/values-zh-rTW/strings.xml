@@ -7,7 +7,6 @@
     <string name="settings_about">關於</string>
     <string name="settings_version">版本</string>
     <string name="settings_source_code">源代碼</string>
-    <string name="settings_translate">翻譯</string>
     <string name="settings_bug_report">Bug 報告</string>
     <string name="work_profile_not_found">工作用戶不可用，請重新啓動 Capsule 以重新初始化。</string>
     <string name="uninstall_success">應用 \"%s\" 卸載成功</string>
@@ -25,11 +24,6 @@
     <string name="settings_dont_freeze_foreground">跳過前臺應用</string>
     <string name="settings_cross_profile_file_chooser_desc">打開以後，您將可以且僅可以從系統的 Documents UI (啓動器上的名稱爲 文件 或 下載) 或支持 Documents UI 的 APP 中 瀏覽 / 查看 / 選擇 / 複製 Capsule 內的文件到主用戶，反之亦然。這不會影響對文件系統的隔離。即使是支持 Documents UI 的 App 也只能臨時獲取您選擇的文件的訪問權限。</string>
     <string name="settings_dont_freeze_foreground_desc">在您鎖屏的時候，不要凍結前臺應用 (鎖屏時仍有可見窗口的應用)。這主要用於音樂播放器等 App，但您將需要在使用完成後手動使用 \"批量凍結\" 快捷方式凍結它們。</string>
-    <string name="work_mode_disabled">工作模式 (Work Mode) 已被您關閉，請開啓後再啓動 Capsule。</string>
-    <string name="shortcut_create_success">快捷方式已創建。</string>
-    <string name="request_usage_stats">Capsule 需要 <b>使用情況數據</b> 來做這件事。請在按 \"確定\" 後出現的窗口中，對 <b>兩個</b> Capsule都打開此權限。如果沒有全部打開，該功能將無法正確運作。</string>
-    <string name="request_storage_manager">File Shuttle 需要訪問 <b>全部文件</b> 的權限。請在接下來的對話框中對 <b>兩個 Capsule</b> (工作用戶內 / 外) 都啓用該權限。</string>
-    <string name="request_system_alert">File Shuttle 需要 <b>懸浮窗</b> 權限才能在 Capsule 不在運行時正常啓動。請在接下來的對話框中對 <b>兩個 Capsule</b> (工作用戶內 / 外) 都打開該權限。</string>
     <string name="batch_operation">批量操作</string>
     <string name="clone_to_work_profile">克隆到 Capsule (工作用戶)</string>
     <string name="unsupported_launcher">無法在您的啓動器上添加快捷方式，請聯繫開發者。</string>
