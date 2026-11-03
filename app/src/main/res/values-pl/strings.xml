@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">Usługa izolowania aplikacji</string>
-    <string name="finish_provision_title">Kliknij tu, aby zakończyć konfigurację Capsule</string>
-    <string name="finish_provision_desc">Gratulacje! Jesteś jedno kliknięcie od skończenia konfiguracji Capsule.</string>
     <string name="service_title">Usługa Capsule</string>
     <string name="service_desc">Capsule jest uruchomiony…</string>
     <string name="service_auto_freeze_title">Auto-zamrożenie w trakcie</string>
@@ -13,7 +11,6 @@
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Zamrożone] %s</string>
     <string name="unfreeze_and_launch">Odmróź i uruchom</string>
-    <string name="notifications_important">Capsule - ważne</string>
     <string name="clone_to_main_profile">Sklonuj do profilu głównego</string>
     <string name="uninstall_app">Odinstaluj</string>
     <string name="freeze_app">Zamróź</string>
@@ -90,11 +87,5 @@
     <string name="setup_wizard_please_wait">Proszę czekać…</string>
     <string name="setup_wizard_please_wait_text">Próbujemy przygotować profil roboczy i skonfigurować Capsule na twoim urządzeniu.</string>
     <string name="setup_wizard_failed">Konfiguracja nieudana</string>
-    <string name="setup_wizard_action_required">Wymagane działanie</string>
-    <string name="setup_wizard_action_required_text">Powinieneś teraz widzieć powiadomienie od Capsulea. <b>Naciśnij na to powiadomienie</b> by zakończyć proces konfiguracji.
-\n
-\nJeśli nie widzisz powiadomienia upewnij się, że nie masz włączonego trybu Nie Przeszkadzać lub spróbuj rozwinąć centrum powiadomień.
-\n
-\nBy zresetować Capsulea i zacząć od nowa możesz wyczyścić dane Capsulea w Ustawieniach.</string>
     <string name="setup_wizard_ready">Gotowy/a?</string>
 </resources>

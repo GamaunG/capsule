@@ -32,13 +32,8 @@
     <string name="setup_open_settings">Open settings</string>
     <string name="setup_copy_diagnostics">Copy details</string>
     <string name="setup_diagnostics_copied">Provisioning details copied.</string>
-    <string name="setup_wizard_action_required">Action required</string>
-    <string name="setup_wizard_action_required_text">You should now be seeing a notification from Capsule. &lt;b&gt;Please click on that notification&lt;/b&gt; to finish the setup process.\n\nIf you do not see the notification, make sure your device is not in Do Not Disturb mode and try pulling down the notification center.\n\nTo reset Capsule and start over, you can clear the data of Capsule in Settings.</string>
 
     <!-- Notifications -->
-    <string name="notifications_important">Capsule Important</string>
-    <string name="finish_provision_title">Click here to finish setting up Capsule</string>
-    <string name="finish_provision_desc">Congratulations! You are one click away from finishing setting up Capsule.</string>
     <string name="service_title">Capsule Service</string>
     <string name="service_desc">Capsule is now running…</string>
     <string name="service_auto_freeze_title">Auto-freeze pending</string>

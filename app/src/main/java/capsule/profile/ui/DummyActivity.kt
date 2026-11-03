@@ -43,7 +43,6 @@ import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.SettingsManager
 import capsule.profile.util.Utility
 import java.io.File
-import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
 
@@ -154,6 +153,14 @@ class DummyActivity : ComponentActivity() {
                 return
             }
 
+        // Delivered by the system through our own PendingIntent, so it carries
+        // no signature by design. A fresh process (the install status landed
+        // after a process death) enters here instead of onNewIntent.
+        if (PACKAGEINSTALLER_CALLBACK == intent.action) {
+            handlePackageInstallerStatus(intent)
+            return
+        }
+
         if (!checkSameProcessRequest(intent)) {
             // checkIntent() must run first: it accepts the bootstrap auth key.
             if (!AuthenticationUtility.checkIntent(intent)) {
@@ -220,33 +227,7 @@ class DummyActivity : ComponentActivity() {
         // must stay intact; the delivery intent is only inspected here.
 
         if (PACKAGEINSTALLER_CALLBACK == intent.action) {
-            when (
-                intent.getIntExtra(
-                    PackageInstaller.EXTRA_STATUS,
-                    PackageInstaller.STATUS_FAILURE,
-                )
-            ) {
-                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    CapsuleLog.i("PackageInstaller: user action required")
-                    val pendingUserAction =
-                        IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
-                    if (pendingUserAction != null) {
-                        startActivity(pendingUserAction)
-                    } else {
-                        CapsuleLog.w("PackageInstaller: pending user action without an intent")
-                        appInstallFinished(Activity.RESULT_CANCELED)
-                    }
-                }
-                PackageInstaller.STATUS_SUCCESS -> {
-                    CapsuleLog.i("PackageInstaller: session finished successfully")
-                    appInstallFinished(Activity.RESULT_OK)
-                }
-                else -> {
-                    val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown"
-                    CapsuleLog.w("PackageInstaller: session failed: $message")
-                    appInstallFinished(Activity.RESULT_CANCELED)
-                }
-            }
+            handlePackageInstallerStatus(intent)
             return
         }
 
@@ -289,14 +270,41 @@ class DummyActivity : ComponentActivity() {
         }
     }
 
+    /** Handles a PackageInstaller status delivery from any entry point. */
+    private fun handlePackageInstallerStatus(status: Intent) {
+        when (
+            status.getIntExtra(
+                PackageInstaller.EXTRA_STATUS,
+                PackageInstaller.STATUS_FAILURE,
+            )
+        ) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                CapsuleLog.i("PackageInstaller: user action required")
+                val pendingUserAction =
+                    IntentCompat.getParcelableExtra(status, Intent.EXTRA_INTENT, Intent::class.java)
+                if (pendingUserAction != null) {
+                    startActivity(pendingUserAction)
+                } else {
+                    CapsuleLog.w("PackageInstaller: pending user action without an intent")
+                    appInstallFinished(Activity.RESULT_CANCELED)
+                }
+            }
+
+            PackageInstaller.STATUS_SUCCESS -> {
+                CapsuleLog.i("PackageInstaller: session finished successfully")
+                appInstallFinished(Activity.RESULT_OK)
+            }
+
+            else -> {
+                val message = status.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown"
+                CapsuleLog.w("PackageInstaller: session failed: $message")
+                appInstallFinished(Activity.RESULT_CANCELED)
+            }
+        }
+    }
+
     private fun actionFinalizeProvision() {
         if (isProfileOwner) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                // Inform the main profile about the finished provisioning.
-                val intent = Intent(FINALIZE_PROVISION)
-                Utility.transferIntentToProfileUnsigned(this, intent)
-                startActivity(intent)
-            }
             finish()
 
             // Component state changes can kill the process completing
@@ -378,9 +386,7 @@ class DummyActivity : ComponentActivity() {
         // The unknown-sources consent must exist before the installer session
         // commits, so its prompt never pops up over the settings screen: ask
         // first, and drive the install only after the user returns to Capsule.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            !packageManager.canRequestPackageInstalls()
-        ) {
+        if (!packageManager.canRequestPackageInstalls()) {
             if (awaitingInstallPermission) {
                 appInstallFinished(Activity.RESULT_CANCELED)
                 return
@@ -414,14 +420,11 @@ class DummyActivity : ComponentActivity() {
             // before the file picker was even opened, so no app op changes
             // mid-install and the forwarded Fd survives the whole session.
             uri = IntentCompat.getParcelableExtra(intent, "direct_install_apk", Uri::class.java)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || intent.hasExtra("apk")) {
-            if (intent.hasExtra("apk")) {
-                // The "package:" scheme stopped working on Oreo; use the apk path.
-                intent.getStringExtra("apk")?.let { path ->
-                    uri = Uri.fromFile(File(path))
-                }
+        } else if (intent.hasExtra("apk")) {
+            // The "package:" scheme stopped working on Oreo; use the apk path.
+            intent.getStringExtra("apk")?.let { path ->
+                uri = Uri.fromFile(File(path))
             }
-
             // Permissive VmPolicy to work around cross-application Uri checks.
             StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().build())
         }
@@ -500,35 +503,47 @@ class DummyActivity : ComponentActivity() {
         splitApks?.forEach { apk -> uris.add(Uri.fromFile(File(apk))) }
 
         Thread {
+            var streamed = true
             for (uri in uris) {
                 try {
-                    contentResolver.openInputStream(uri).use { inputStream ->
+                    // A null stream (the provider behind it died) must abort
+                    // the install, not crash this thread.
+                    val inputStream =
+                        contentResolver.openInputStream(uri)
+                            ?: throw java.io.IOException("The stream could not be opened")
+                    inputStream.use {
                         session
                             .openWrite(
                                 UUID.randomUUID().toString(),
                                 0,
-                                inputStream!!.available().toLong(),
+                                it.available().toLong(),
                             ).use { os: OutputStream ->
-                                pipe(inputStream, os)
+                                it.copyTo(os, 64 * 1024)
                                 session.fsync(os)
                             }
                     }
                 } catch (e: java.io.IOException) {
-                    // Continue with the remaining streams.
+                    // A session without its base APK would only fail later
+                    // with a confusing installer error: abandon it cleanly.
+                    CapsuleLog.w("Failed to stream an install file", e)
+                    streamed = false
+                    break
                 }
             }
 
-            runOnUiThread(callback)
+            runOnUiThread {
+                if (streamed) {
+                    callback.run()
+                } else {
+                    try {
+                        session.abandon()
+                    } catch (e: Exception) {
+                        // The session already went away.
+                    }
+                    appInstallFinished(Activity.RESULT_CANCELED)
+                }
+            }
         }.start()
-    }
-
-    private fun pipe(input: InputStream, output: OutputStream) {
-        val buffer = ByteArray(65536)
-        var n = input.read(buffer)
-        while (n > -1) {
-            output.write(buffer, 0, n)
-            n = input.read(buffer)
-        }
     }
 
     @Suppress("DEPRECATION")
@@ -590,16 +605,25 @@ class DummyActivity : ComponentActivity() {
     private fun actionUnfreezeAndLaunch() {
         if (!isProfileOwner) {
             // Forward to the work profile with auto-freeze decisions attached.
-            val srcIntent = intent
             val packageName =
-                srcIntent.getStringExtra("packageName") ?: run {
+                intent.getStringExtra("packageName") ?: run {
                     CapsuleLog.w("Unfreeze and launch requested without a package name")
                     finish()
                     return
                 }
             CapsuleLog.i("Forwarding unfreeze and launch for $packageName to the work profile")
             val intent = Intent(UNFREEZE_AND_LAUNCH)
-            Utility.transferIntentToProfile(this, intent)
+            try {
+                Utility.transferIntentToProfile(this, intent)
+            } catch (e: IllegalStateException) {
+                // The profile is paused, gone or booting: shortcut taps can
+                // arrive at any time, and an unguarded failure here crashed
+                // the whole app.
+                CapsuleLog.w("Could not reach the work profile to launch $packageName", e)
+                Toast.makeText(this, R.string.work_profile_unreachable_title, Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
             intent.putExtra("packageName", packageName)
             // Shortcut launches freeze on lock by default, independent of the
             // per-app Auto Freeze list (which covers normal launches only);
@@ -608,39 +632,9 @@ class DummyActivity : ComponentActivity() {
                 "shouldFreeze",
                 shouldFreezeAfterShortcut(packageName),
             )
-            if (srcIntent.hasExtra("linkedPackages")) {
-                val packages = srcIntent.getStringExtra("linkedPackages")!!.split(",").toTypedArray()
-                val packagesShouldFreeze = BooleanArray(packages.size)
-                for (i in packages.indices) {
-                    packagesShouldFreeze[i] = shouldFreezeAfterShortcut(packages[i])
-                }
-                intent.putExtra("linkedPackages", packages)
-                intent.putExtra("linkedPackagesShouldFreeze", packagesShouldFreeze)
-            }
             startActivity(intent)
             finish()
             return
-        }
-
-        // Unfreeze linked apps first, each with its own auto-freeze flag.
-        if (intent.hasExtra("linkedPackages")) {
-            val packages = intent.getStringArrayExtra("linkedPackages") ?: emptyArray()
-            val packagesShouldFreeze =
-                intent.getBooleanArrayExtra("linkedPackagesShouldFreeze") ?: BooleanArray(0)
-            for (i in packages.indices) {
-                policyManager.setApplicationHidden(
-                    ComponentName(this, CapsuleDeviceAdminReceiver::class.java),
-                    packages[i],
-                    false,
-                )
-                if (i < packagesShouldFreeze.size && packagesShouldFreeze[i]) {
-                    registerAppToFreeze(packages[i])
-                }
-            }
-            // Something became unfrozen: the watcher may have stopped after
-            // a pass froze everything, and only re-arming it here keeps the
-            // next screen lock from silently skipping these apps.
-            FreezeService.armIfNeeded(this)
         }
 
         val packageName =
@@ -695,7 +689,16 @@ class DummyActivity : ComponentActivity() {
             // snackbar instead, so the work side stays silent for them.
             val fromApp = intent.getBooleanExtra("from_app", false)
             val intent = Intent(FREEZE_ALL_IN_LIST)
-            Utility.transferIntentToProfile(this, intent)
+            try {
+                Utility.transferIntentToProfile(this, intent)
+            } catch (e: IllegalStateException) {
+                // Reachable at any time from a launcher shortcut or the menu,
+                // including while the profile is paused or already removed.
+                CapsuleLog.w("Could not reach the work profile for the freeze-all request", e)
+                Toast.makeText(this, R.string.work_profile_unreachable_title, Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
             val list =
                 LocalStorageManager
                     .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
@@ -712,14 +715,16 @@ class DummyActivity : ComponentActivity() {
     private fun actionFreezeAllInList() {
         if (isProfileOwner) {
             val list = intent.getStringArrayExtra("list") ?: emptyArray()
-            for (pkg in list) {
-                policyManager.setApplicationHidden(
-                    ComponentName(this, CapsuleDeviceAdminReceiver::class.java),
-                    pkg,
-                    true,
-                )
-            }
-            stopService(Intent(this, FreezeService::class.java))
+            // One shared pass: the requested list, the apps launched through
+            // shortcuts this session and the skip-foreground rules all apply,
+            // and the watcher only stops when nothing remains to watch. The
+            // former manual loop stopped the watcher even while session apps
+            // were still pending, so those never froze.
+            FreezeService.runFreezePass(
+                this,
+                extraTargets = list.toList(),
+                forceListApps = true,
+            )
             if (intent.getBooleanExtra("notify", true)) {
                 Toast.makeText(this, R.string.freeze_all_success, Toast.LENGTH_SHORT).show()
             }

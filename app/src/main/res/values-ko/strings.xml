@@ -7,8 +7,6 @@
     <string name="unfreeze_app">활성화</string>
     <string name="setup_wizard_ready">준비되셨나요?</string>
     <string name="setup_wizard_failed">설정 실패</string>
-    <string name="setup_wizard_action_required">수동 조치 필요</string>
-    <string name="notifications_important">Capsule 알림</string>
     <string name="service_title">Capsule 서비스</string>
     <string name="service_auto_freeze_title">자동 비활성화 대기 중</string>
     <string name="app_installing">설치 중...</string>
@@ -65,7 +63,6 @@
 \n
 \n\"다음\" 버튼을 누르시면 Capsule가 종료됩니다.</string>
     <string name="launch_app_fail">%s 앱에 그래픽 인터페이스가 존재하지 않아 실행할 수 없습니다.</string>
-    <string name="finish_provision_title">Capsule 설정 작업 마무리하기</string>
     <string name="settings">설정</string>
     <string name="settings_source_code">소스 코드</string>
     <string name="service_desc">Capsule 서비스가 실행 중입니다.</string>
@@ -74,7 +71,6 @@
     <string name="setup_wizard_ready_text">이제 Capsule 설정 작업을 시작합니다. 본 기기가 Android 버전 7 이하를 실행 중이라면, 방해 금지 모드가 <b>꺼진 상태</b>인지 꼭 확인해 주세요. 이후 <b>푸시 알림을 눌러야</b> 설정 작업이 마무리되기 때문입니다.
 \n
 \n\"다음\" 버튼을 누르시면 설정 작업이 진행됩니다.</string>
-    <string name="finish_provision_desc">이곳을 누르시면 Capsule의 설정 작업이 모두 마무리됩니다.</string>
     <string name="settings_block_contacts_searching">연락처 검색 차단</string>
     <string name="settings_block_contacts_searching_desc">개인 프로필에서 직장 프로필 내에 저장된 연락처로의 접근을 막습니다.</string>
     <string name="setup_wizard_compatibility_text">Capsule는 AOSP(Android Open Source Project), Google Android(Pixel 탑재 운영 체제) 및 <b>대다수의 AOSP 기반 오픈 소스 커스텀 ROM</b>(LineageOS 등)과 같이 AOSP를 기반으로 파생된 Android 시스템들에서 개발 및 테스트되었습니다. 본 기기가 상기된 Android 시스템 중 하나를 실행하고 있다면, 이는 Capsule가 본 기기에서 올바르게 동작할 가능성이 높다는 뜻입니다. 👏
@@ -89,11 +85,6 @@
 \nCapsule의 일부 고급 기능들의 경우 <b>직장 프로필 외부의 권한</b>이 추가로 필요할 수 있습니다. 관련된 고급 기능들을 켤 때 해당 권한들의 부여가 필요할 경우 Capsule는 해당 권한들의 활성화를 요청하게 됩니다.</string>
     <string name="settings_services">서비스</string>
     <string name="settings_auto_freeze_service_desc">기기의 화면 잠금이 설정된 상태일 때 \"활성화 후 실행 바로 가기\"를 통해 실행된 앱들을 자동으로 비활성화 처리합니다.</string>
-    <string name="setup_wizard_action_required_text">이제 Capsule가 띄운 푸시 알림이 보이실 것입니다. <b>해당 푸시 알림을 눌러주시면</b> 설정 작업이 마무리됩니다.
-\n
-\n만약 푸시 알림이 보이지 않으시다면, 방해 금지 모드가 켜져 있지 않은지 확인하시고 알림 센터를 아래로 스와이프하여 푸시 알림이 표시되어 있는지 확인해 주세요.
-\n
-\nCapsule를 초기화하고 처음부터 설정을 다시 진행하시려면 [설정]의 Capsule의 앱 정보 화면에서 [데이터 지우기]를 누른 후 다시 시도해 주시기 바랍니다.</string>
     <string name="freeze_app">비활성화</string>
     <string name="list_item_disabled">[비활성] %s</string>
     <string name="settings_dont_freeze_foreground_desc">화면 잠금이 실행되었을 때 포어그라운드에서 실행 중(화면에 표시 중)인 앱에 대하여 비활성화 처리를 하지 않습니다. 음악 플레이어 등의 앱을 사용하고 있을 때 유용한 기능이나, \"일괄 비활성화 바로 가기\"를 통하여 수동으로 비활성화해 주어야 합니다.</string>

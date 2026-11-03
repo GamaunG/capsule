@@ -32,7 +32,10 @@ android {
 
     defaultConfig {
         applicationId = "capsule.profile"
-        minSdk = 24
+        // Android 8.0: notification channels, pinned shortcuts and the
+        // unknown-sources app op are the effective floor of the feature set;
+        // every pre-Oreo branch was untestable legacy.
+        minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"

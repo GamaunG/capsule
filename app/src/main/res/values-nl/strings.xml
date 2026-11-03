@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notifications_important">Capsule belangrijk</string>
-    <string name="finish_provision_title">Druk hier om het instellen van Capsule te voltooien</string>
-    <string name="finish_provision_desc">Gefeliciteerd! Je bent een klik verwijderd om het instellen van Capsule te voltooien.</string>
     <string name="device_admin_desc">App isolatiedienst</string>
     <string name="service_title">Capsule Service</string>
     <string name="service_desc">Capsule is nu actief …</string>
@@ -48,12 +45,6 @@
 \nAls u de setup niet handmatig heeft geannuleerd, dan is de reden voor het mislukken meestal te wijten aan een sterk gewijzigd systeem of een conflict tussen Capsule en andere werkprofiel-managers. Helaas is hier niet veel aan te doen.
 \n
 \nKlik op Volgende om af te sluiten.</string>
-    <string name="setup_wizard_action_required">Actie vereist</string>
-    <string name="setup_wizard_action_required_text">Je zou nu een melding van Capsule moeten zien. <b>Klik op die melding</b> om het installatieproces te voltooien.
-\n
-\nAls je de melding niet ziet, controleer dan of je toestel niet in de Niet storen modus staat en probeer het meldingencentrum naar beneden te halen.
-\n
-\nOm Capsule te resetten en opnieuw te beginnen, kun je de gegevens van Capsule wissen in Instellingen.</string>
     <string name="service_auto_freeze_now">Nu bevriezen</string>
     <string name="app_installing">Installeren...</string>
     <string name="fragment_profile_main">Hoofd</string>

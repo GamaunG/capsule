@@ -36,7 +36,6 @@
     <string name="unsupported_launcher">Невозможно добавить ярлык в ваш лаунчер. Пожалуйста, свяжитесь с разработчиком.</string>
     <string name="freeze_all_success">Все приложения в списке автозаморозки были успешно заморожены.</string>
     <string name="miui_cannot_clone">Клонирование несистемных приложений в другой профиль в данный момент невозможно на MIUI. Пожалуйста, клонируйте магазин приложений вашей системы (например, <b>Play Маркет</b>) в ваш другой профиль и установите приложения оттуда.</string>
-    <string name="finish_provision_title">Нажмите, чтобы завершить настройку Capsule</string>
     <string name="app_installing">Установка...</string>
     <string name="allow_cross_profile_widgets">Виджеты в осн. профиле</string>
     <string name="search">Поиск</string>
@@ -54,8 +53,6 @@
     <string name="settings_services">Службы</string>
     <string name="settings_unfreeze_method">Способ включения</string>
     <string name="continue_anyway">Всё равно продолжить</string>
-    <string name="notifications_important">Capsule: важное</string>
-    <string name="finish_provision_desc">Поздравляем! Вы в одном шаге от завершения настройки Capsule.</string>
     <string name="install_app_to_profile">Установить APK в Capsule</string>
     <string name="install_app_to_profile_success">Приложение установлено в рабочий профиль.</string>
     <string name="settings_block_contacts_searching">Не отслеживать контакты</string>
@@ -70,7 +67,6 @@
     <string name="setup_wizard_permissions">Пару слов о разрешениях</string>
     <string name="setup_wizard_compatibility">Совместимость</string>
     <string name="setup_wizard_failed">Установка не выполнена</string>
-    <string name="setup_wizard_action_required">Требуется действие</string>
     <string name="setup_wizard_ready">Готовы?</string>
     <string name="setup_wizard_please_wait">Подождите…</string>
     <string name="setup_wizard_please_wait_text">Выполняется инициализация рабочего профиля и настройка Capsule на вашем устройстве.</string>
@@ -89,11 +85,6 @@
 \nИли же, если вы сами не отменили установку, то причина сбоя чаще всего кроется в сильно модифицированной системе или конфликтом между Capsule и другими менеджерами рабочих профилей. К сожалению, мы мало что можем с этим поделать.
 \n
 \nНажмите \"Далее\", чтобы выйти.</string>
-    <string name="setup_wizard_action_required_text">Сейчас вы должны увидеть уведомление от Capsule. <b>Нажмите на это уведомление</b>, чтобы завершить процесс установки.
-\n
-\nЕсли вы не видите уведомление, убедитесь, что ваше устройство не находится в режиме \"Не беспокоить\", и попробуйте открыть панель уведомлений.
-\n
-\nЧтобы попробовать начать всё сначала, вы можете очистить данные Capsule в настройках приложения.</string>
     <string name="setup_wizard_permissions_text">По умолчанию Capsule не запрашивает никаких разрешений для себя. Однако, как только вы продолжите процесс настройки, Capsule попытается установить рабочий профиль и, следовательно, стать <b>менеджером профиля</b>.
 \n
 \nЭто даст Capsule обширный список прав внутри профиля, сравнимый с правами администратора устройства, хотя и ограниченный профилем. Быть менеджером профиля необходимо для большинства функций Capsule.

@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">アプリ隔離サービス</string>
-    <string name="notifications_important">Capsuleの重要な通知</string>
-    <string name="finish_provision_title">タップしてCapsuleのセットアップを完了してください</string>
-    <string name="finish_provision_desc">おめでとうございます！Capsuleのセットアップ完了まであと一歩です。</string>
     <string name="service_title">Capsuleサービス</string>
     <string name="service_desc">Capsuleは実行中です…</string>
     <string name="service_auto_freeze_title">自動凍結は保留中です</string>
@@ -70,18 +67,12 @@
     <string name="setup_wizard_please_wait">しばらくお待ちください…</string>
     <string name="setup_wizard_please_wait_text">仕事用プロファイルを設定してCapsuleをセットアップしようとしています。</string>
     <string name="setup_wizard_failed">セットアップに失敗しました</string>
-    <string name="setup_wizard_action_required">操作が必要です</string>
     <string name="setup_wizard_welcome">Capsuleへようこそ</string>
     <string name="settings_dont_freeze_foreground_desc">画面をロックしたときに、フォアグラウンドのアプリ（アクティビティが表示されているもの）を凍結しない。これは音楽プレーヤーなどのアプリには便利ですが、その後「バッチフリーズ・ショートカット」を使って手動で凍結する必要があります。</string>
     <string name="setup_wizard_ready_text">これで、Capsuleの設定が完了しました。Android 7以下の端末の場合、セットアッププロセスを完了させるには、後で<b>通知をタップ</b>する必要があるため、まずお使いのデバイスが<b>サイレントモードになっていない</b>ことを確認してください。
 \n
 \n準備ができたら、「次へ」をタップして、セットアッププロセスを開始します。</string>
     <string name="setup_wizard_permissions">権限についてひとこと</string>
-    <string name="setup_wizard_action_required_text">これで、Capsuleからの通知が表示されるはずです。<b>通知をタップして</b>、セットアッププロセスを終了してください。
-\n
-\n通知が表示されない場合は、デバイスが「サイレントモード」になっていないことを確認し、通知センターを下げてみてください。
-\n
-\nCapsuleをリセットして最初からやり直すには、「設定」でCapsuleのデータを消去してください。</string>
     <string name="setup_wizard_permissions_text">デフォルトでは、Capsuleは個々の権限を要求しません。しかし、セットアッププロセスを進めると、Capsuleは仕事用プロファイルを設定しようとします。設定が完了すると、そのプロファイルの<b>プロファイルマネージャー</b>になります。
 \n
 \nこれにより、Capsuleには、プロファイル内に限定されてはいるものの、デバイス管理者に匹敵する幅広い権限が与えられます。プロファイルマネージャーになることは、Capsuleのほとんどの機能に必要です。

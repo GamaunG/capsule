@@ -7,12 +7,6 @@
 \nNgoài ra, nếu bạn đã không huỷ thiết lập theo cách thủ công, thì lý do thất bại thường là do hệ thống bị sửa đổi sâu, hoặc có xung đột giữa Capsule và các trình quản lý Hồ sơ công việc khác. Không may mắn là chúng tôi không thể làm gì nhiều về điều này.
 \n
 \nNhấn Tiếp để thoát.</string>
-    <string name="setup_wizard_action_required_text">Bây giờ, bạn rất có thể đang thấy một thông báo từ Capsule. <b>Vui lòng nhấn vào thông báo đó</b> để hoàn thành quá trình thiết lập.
-\n
-\nNếu bạn không thấy thông báo đó, hãy chắc chắn là thiết bị của bạn đang không ở chế độ Không làm phiền và thử kéo trung tâm thông báo xuống.
-\n
-\nĐể đặt lại Capsule và bắt đầu lại, bạn có thể xoá dữ liệu của Capsule trong Cài đặt.</string>
-    <string name="finish_provision_desc">Chúc mừng! Bạn còn một cú nhấn nữa để hoàn tất thiết lập Capsule.</string>
     <string name="service_auto_freeze_desc">Capsule sẽ tự động đóng băng các ứng dụng được chạy từ \"Huỷ đóng băng &amp; Chạy\" vào sự kiện khoá màn hình tiếp theo.</string>
     <string name="unfreeze_app">Huỷ đóng băng</string>
     <string name="allow_cross_profile_widgets">Cho phép tiện ích trong Hồ sơ chính</string>
@@ -24,9 +18,6 @@
     <string name="setup_wizard_ready">Sẵn sàng chưa?</string>
     <string name="setup_wizard_please_wait">Vui lòng đợi…</string>
     <string name="setup_wizard_failed">Thiết lập thất bại</string>
-    <string name="setup_wizard_action_required">Yêu cầu hành động</string>
-    <string name="notifications_important">Capsule - Quan trọng</string>
-    <string name="finish_provision_title">Nhấn vào đây để hoàn tất thiết lập Capsule</string>
     <string name="service_title">Dịch vụ Capsule</string>
     <string name="service_desc">Capsule hiện đang chạy…</string>
     <string name="service_auto_freeze_title">Đang chờ tự động đóng băng</string>

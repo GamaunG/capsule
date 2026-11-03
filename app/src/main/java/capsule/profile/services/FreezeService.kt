@@ -136,7 +136,6 @@ class FreezeService : Service() {
         val notification =
             Utility.buildNotification(
                 this,
-                important = false,
                 ticker = getString(R.string.service_auto_freeze_title),
                 title = getString(R.string.service_auto_freeze_title),
                 desc = getString(R.string.service_auto_freeze_desc),
@@ -206,10 +205,20 @@ class FreezeService : Service() {
             )
 
         /**
-         * Runs one freeze pass. Called from the alarm receiver; safe to call
-         * whether or not the service instance is alive.
+         * Runs one freeze pass. Called from the alarm receiver, the
+         * notification's "Freeze now" action and the "Freeze all" shortcut;
+         * safe to call whether or not the service instance is alive.
+         *
+         * [extraTargets] are frozen unconditionally — an explicit user action
+         * passes its own copy of the Auto Freeze list. [forceListApps] also
+         * includes the local Auto Freeze list even when its service toggle is
+         * off, again for explicit user actions.
          */
-        fun runFreezePass(context: Context) {
+        fun runFreezePass(
+            context: Context,
+            extraTargets: List<String> = emptyList(),
+            forceListApps: Boolean = false,
+        ) {
             val dpm = context.getSystemService(DevicePolicyManager::class.java)
             val adminComponent =
                 ComponentName(context, CapsuleDeviceAdminReceiver::class.java)
@@ -217,12 +226,14 @@ class FreezeService : Service() {
             val targets = LinkedHashSet<String>()
             synchronized(LOCK) {
                 targets.addAll(appsToFreeze)
+                targets.addAll(extraTargets)
                 val lockTime = screenLockTime
                 val stats = lastUsageStats
 
                 // Apps on the Auto Freeze list freeze on every lock, no matter
-                // how they were launched.
-                if (SettingsManager.getAutoFreezeServiceEnabled()) {
+                // how they were launched — unless the whole service is off and
+                // this pass comes from an explicit user action.
+                if (forceListApps || SettingsManager.getAutoFreezeServiceEnabled()) {
                     for (pkg in SettingsManager.getAutoFreezeList()) {
                         val unfrozen =
                             try {

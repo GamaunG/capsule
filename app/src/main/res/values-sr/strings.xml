@@ -21,17 +21,10 @@
     <string name="setup_wizard_ready_text">Сада смо спремни да Вам подесимо Шелтер. Ако Ваш уређај користи Андроид 7 или старију верзију, прво се уверите да Ваш уређај <b>није</b> у режиму Не узнемиравај, јер ћете морати да <b>кликнете на обавештење</b> касније да бисте завршили процес подешавања.
 \n
 \nКада будете спремни, кликните „Даље“ да бисте започели процес подешавања.</string>
-    <string name="setup_wizard_action_required_text">Сада би требало да видите обавештење од Шелтера. <b>Кликните на то обавештење</b> да бисте завршили процес подешавања.
-\n
-\nАко не видите обавештење, уверите се да Ваш уређај није у режиму Не узнемиравај и покушајте да повучете центар за обавештења надоле.
-\n
-\nДа бисте ресетовали Шелтер и почели испочетка, можете да обришете податке Шелтера у подешавањима.</string>
     <string name="uninstall_fail_system_app">Није могуће деинсталирати системске апликације на профилу над којим Шелтер нема контролу.</string>
     <string name="setup_wizard_ready">Спремни?</string>
     <string name="setup_wizard_please_wait">Сачекајте…</string>
     <string name="setup_wizard_failed">Подешавање није успело</string>
-    <string name="setup_wizard_action_required">Потребна радња</string>
-    <string name="finish_provision_desc">Честитамо! На један клик сте од завршетка подешавања Шелтера.</string>
     <string name="service_title">Шелтер услуга</string>
     <string name="service_desc">Шелтер сада ради …</string>
     <string name="service_auto_freeze_now">Замрзни сада</string>
@@ -74,11 +67,9 @@
     <string name="freeze_success">Апликација \"%s\" је успешно замрзнута</string>
     <string name="unfreeze_success">Апликација \"%s\" је успешно одмрзнута</string>
     <string name="freeze_all_success">Све апликације на листи „Аутоматско замрзавање“ су успешно замрзнуте.</string>
-    <string name="notifications_important">Шелтер важно</string>
     <string name="launch_app_fail">Није могуће покренути апликацију %s јер нема ГУИ.</string>
     <string name="continue_anyway">Свеједно настави</string>
     <string name="miui_cannot_clone">Клонирање несистемских апликација на други профил тренутно није могуће на МИУИ. Клонирајте продавницу апликација Вашег система (нпр. <b>Плеј Стор</b>) у други профил и затим инсталирајте апликације одатле.</string>
-    <string name="finish_provision_title">Кликните овде да завршите подешавање Шелтера</string>
     <string name="service_auto_freeze_title">Аутоматско замрзавање је на чекању</string>
     <string name="service_auto_freeze_desc">Шелтер ће аутоматски замрзнути апликације покренуте из „Одмрзни и покрени“ приликом следећег закључавања екрана.</string>
     <string name="create_unfreeze_shortcut">Направите пречицу за одмрзавање и/или покретање</string>

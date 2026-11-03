@@ -14,12 +14,15 @@
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
-    <uses-permission android:maxSdkVersion="25"
-        android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+    <!-- All-files access for File Shuttle on Android 11 and later. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- Legacy shared-storage access for File Shuttle on Android 8 and 9;
+         Android 10 is not supported there and 11+ uses all-files access. -->
+    <uses-permission android:maxSdkVersion="28"
+        android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:maxSdkVersion="28"
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />

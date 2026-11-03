@@ -18,15 +18,6 @@
     <string name="setup_wizard_please_wait">נא להמתין…</string>
     <string name="setup_wizard_please_wait_text">אנחנו מנסים לאתחל את פרופיל העבודה ולהגדיר את Capsule במכשיר שלך.</string>
     <string name="setup_wizard_failed">ההגדרה נכשלה</string>
-    <string name="setup_wizard_action_required">פעולה נדרשת</string>
-    <string name="setup_wizard_action_required_text">כעת אתה אמור לראות הודעה מ-Capsule. <b>אנא לחץ על הודעה זו</b> כדי לסיים את תהליך ההגדרה.
-\n
-\nאם אינך רואה את ההתראה, ודא שהמכשיר שלך אינו במצב \'נא לא להפריע\' ונסה למשוך את מרכז ההתראות כלפי מטה.
-\n
-\nכדי לאפס את Capsule ולהתחיל מחדש, אתה יכול לנקות את הנתונים של Capsule בהגדרות.</string>
-    <string name="notifications_important">מקלט חשוב</string>
-    <string name="finish_provision_title">לחץ כאן כדי לסיים את הגדרת מקלט</string>
-    <string name="finish_provision_desc">מזל טוב! אתה במרחק קליק אחד מסיום ההגדרה של Capsule.</string>
     <string name="service_desc">Capsule פועל כעת…</string>
     <string name="service_auto_freeze_title">הקפאה אוטומטית בהמתנה</string>
     <string name="service_title">שירות Capsule</string>

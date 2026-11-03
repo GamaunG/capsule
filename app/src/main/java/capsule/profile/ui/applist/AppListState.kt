@@ -181,7 +181,7 @@ class AppListState(
                     }
                     if (isRemote) {
                         withContext(Dispatchers.IO) {
-                            loadCrossProfileListsLocked()
+                            loadCrossProfileLists()
                             // Drop auto-freeze entries for apps that no longer exist.
                             Utility.deleteMissingApps(
                                 LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
@@ -224,7 +224,7 @@ class AppListState(
     }
 
     /** Binder reads; must be called off the main thread. */
-    private fun loadCrossProfileListsLocked() {
+    private fun loadCrossProfileLists() {
         try {
             val providers = service.crossProfileWidgetProviders
             crossProfileWidgetProviders.clear()

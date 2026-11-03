@@ -33,12 +33,7 @@ class ApplicationInfoWrapper private constructor() : Parcelable {
     val infoValue: ApplicationInfo get() = requireNotNull(info)
 
     val splitApks: Array<String>?
-        get() =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                requireNotNull(info).splitSourceDirs
-            } else {
-                null
-            }
+        get() = requireNotNull(info).splitSourceDirs
 
     fun isHidden(): Boolean = isHiddenState
 

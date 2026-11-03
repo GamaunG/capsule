@@ -42,7 +42,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,7 +58,6 @@ import capsule.profile.ui.components.DialogButton
 import capsule.profile.ui.components.HtmlText
 import capsule.profile.ui.theme.CapsuleTheme
 import capsule.profile.util.AuthenticationUtility
-import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.Utility
 
 /**
@@ -85,8 +83,6 @@ class SetupWizardActivity : ComponentActivity() {
             return
         }
 
-        val resume = ACTION_RESUME_SETUP == intent?.action
-
         // A work profile managed by another app is a hard provisioning blocker:
         // surface it on the wizard itself instead of letting the user walk
         // into it at the very end. The FAILED page carries the explanation
@@ -99,7 +95,7 @@ class SetupWizardActivity : ComponentActivity() {
 
         setContent {
             CapsuleTheme {
-                WizardScreen(resume)
+                WizardScreen()
             }
         }
     }
@@ -143,17 +139,10 @@ class SetupWizardActivity : ComponentActivity() {
 
     private fun setupProfileCb(result: Boolean) {
         if (result) {
-            if (Utility.isWorkProfileAvailable(this)) {
-                // On Oreo+ the activity-based ACTION_PROVISIONING_SUCCESSFUL
-                // flow keeps the provisioning UI up until finalization.
-                finishWithResult(true)
-                return
-            }
-
-            // Pre-Oreo: the user must tap a notification to bring the profile
-            // side up before the setup is complete.
-            LocalStorageManager.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, true)
-            wizardState = WizardStep.ACTION_REQUIRED
+            // Finalization runs inside the profile through the activity-based
+            // ACTION_PROVISIONING_SUCCESSFUL flow; MainActivity adopts the
+            // profile through its regular bind chain.
+            finishWithResult(true)
         } else {
             wizardState = WizardStep.FAILED
             failureReasonRes = detectFailureReason()
@@ -273,7 +262,6 @@ class SetupWizardActivity : ComponentActivity() {
         COMPATIBILITY,
         READY,
         PLEASE_WAIT,
-        ACTION_REQUIRED,
         FAILED,
     }
 
@@ -284,10 +272,7 @@ class SetupWizardActivity : ComponentActivity() {
     private var failureReasonRes by mutableStateOf<Int?>(null)
 
     @Composable
-    private fun WizardScreen(resume: Boolean) {
-        LaunchedEffect(resume) {
-            if (resume) wizardState = WizardStep.ACTION_REQUIRED
-        }
+    private fun WizardScreen() {
         var showDiagnostics by remember { mutableStateOf(false) }
         val step = wizardState
 
@@ -369,16 +354,9 @@ class SetupWizardActivity : ComponentActivity() {
                     WizardTextPage(
                         titleRes = R.string.setup_wizard_please_wait,
                         textRes = R.string.setup_wizard_please_wait_text,
-                        progress = true,
                     )
                 }
-                WizardStep.ACTION_REQUIRED -> {
-                    WizardTextPage(
-                        titleRes = R.string.setup_wizard_action_required,
-                        textRes = R.string.setup_wizard_action_required_text,
-                        progress = true,
-                    )
-                }
+
                 WizardStep.FAILED -> {
                     WizardTextPage(
                         titleRes = R.string.setup_wizard_failed,
@@ -456,7 +434,7 @@ class SetupWizardActivity : ComponentActivity() {
                     content()
                 }
 
-                if (wizardState == WizardStep.PLEASE_WAIT || wizardState == WizardStep.ACTION_REQUIRED) {
+                if (wizardState == WizardStep.PLEASE_WAIT) {
                     LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 16.dp))
                 }
 
@@ -512,7 +490,6 @@ class SetupWizardActivity : ComponentActivity() {
     private fun WizardTextPage(
         titleRes: Int,
         textRes: Int,
-        progress: Boolean = false,
         reasonRes: Int? = null,
         onCopyDiagnostics: (() -> Unit)? = null,
         onOpenSettings: (() -> Unit)? = null,
@@ -594,11 +571,6 @@ class SetupWizardActivity : ComponentActivity() {
     }
 
     companion object {
-        /**
-         * Used when provisioning already finished but the profile-side app was
-         * never brought up (pre-Oreo notification flow).
-         */
-        const val ACTION_RESUME_SETUP = "capsule.profile.RESUME_SETUP"
         const val ACTION_PROFILE_PROVISIONED = "capsule.profile.PROFILE_PROVISIONED"
     }
 }
@@ -606,18 +578,6 @@ class SetupWizardActivity : ComponentActivity() {
 class SetupWizardContract : ActivityResultContract<Void?, Boolean>() {
     override fun createIntent(context: Context, input: Void?): Intent =
         Intent(context, SetupWizardActivity::class.java)
-
-    override fun parseResult(
-        resultCode: Int,
-        intent: Intent?,
-    ): Boolean = resultCode == android.app.Activity.RESULT_OK
-}
-
-class ResumeSetupContract : ActivityResultContract<Void?, Boolean>() {
-    override fun createIntent(context: Context, input: Void?): Intent =
-        Intent(context, SetupWizardActivity::class.java).apply {
-            action = SetupWizardActivity.ACTION_RESUME_SETUP
-        }
 
     override fun parseResult(
         resultCode: Int,

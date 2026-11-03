@@ -30,9 +30,6 @@
     <string name="unfreeze_and_launch">Rozmrazit a spustit</string>
     <string name="auto_freeze">Automatické zamrznutí</string>
     <string name="allow_cross_profile_widgets">Povolit widgety v hlavním profilu</string>
-    <string name="setup_wizard_action_required">Je vyžadována akce</string>
-    <string name="notifications_important">Důležité pro Capsule</string>
-    <string name="finish_provision_title">Klikněte zde pro dokončení nastavení Capsuleu</string>
     <string name="allow_cross_profile_interaction">Povolit interakci napříč profily</string>
     <string name="create_freeze_all_shortcut">Vytvořit zkratku Dávkové zmrazení</string>
     <string name="settings_interaction">Interakce</string>
@@ -53,13 +50,7 @@
     <string name="setup_wizard_please_wait_text">Snažíme se zapnout Pracovní profil a nastavit Capsule.</string>
     <string name="setup_wizard_failed">Nastavení selhalo</string>
     <string name="install_app_to_profile">Nainstalovat APK do Capsuleu</string>
-    <string name="setup_wizard_action_required_text">Nyní byste měli dostat oznámení od Capsuleu. <b>Klikněte na něj</b> k dokončení procesu nastavení.
-\n
-\nPokud žádné oznámení nevidíte, ujistěte se, že na Vašem zařízení není zapnutý režim Nerušit a zkuste stáhnou centrum oznámení.
-\n
-\nPokud chcete resetovat Capsule a začít od začátku, můžete odstranit data Capsuleu v Nastavení.</string>
     <string name="service_desc">Capsule právě běží …</string>
-    <string name="finish_provision_desc">Gratuluji! Jste jeden klik od dokončení nastavování Capsuleu.</string>
     <string name="service_title">Služba Capsuleu</string>
     <string name="service_auto_freeze_title">Automatické zmrazení je pozdrženo</string>
     <string name="service_auto_freeze_desc">Capsule automaticky zamrazí aplikace spuštěné z \"Rozmrazit &amp; Spustit\" při dalším zamčení obrazovky.</string>

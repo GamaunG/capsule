@@ -13,8 +13,6 @@
     <string name="show_all_warning">Manipularea aplicațiilor ascunse din listă ar putea provoca blocări și tot felul de comportamente neașteptate. De asemenea această caracteristică poate fi utilă atunci când ROM-urile defecte personalizate de furnizor nu activează în mod implicit toate aplicațiile de sistem necesare în profilul de lucru. Dacă continuați, sunteți pe cont propriu.</string>
     <string name="settings_cross_profile_file_chooser_desc">Când este activat, veți putea răsfoi / vizualiza / alege / copia fișiere în Capsule din profilul principal și invers, DOAR prin interfața de utilizare a documentelor (denumită Fișiere sau documente pe launcher-ul dvs.) sau aplicații cu suport pentru interfața de utilizare a documentelor (acestea câștigă numai acces temporar la fișierele pe care le alegeți în interfața de utilizare Documente), în timp ce aparține încă izolării sistemului de fișiere.</string>
     <string name="create_freeze_all_shortcut">Creați o comandă rapidă de Inghetare Grup(lot)</string>
-    <string name="notifications_important">Important</string>
-    <string name="finish_provision_title">Click aici pentru a finaliza configurarea Capsule</string>
     <string name="service_title">Serviciul Capsule</string>
     <string name="service_desc">Capsule ruleaza acum …</string>
     <string name="service_auto_freeze_title">Auto-inghetare în așteptare</string>
@@ -59,7 +57,6 @@
     <string name="work_profile_not_found">Profilul de Lucru nu a fost găsit. Reporniți aplicația pentru a re-furniza profilul.</string>
     <string name="miui_cannot_clone">Clonarea aplicațiilor non-sistem pe un alt profil nu este momentan posibilă pe MIUI. Vă rugăm să clonați magazinul de aplicații al sistemului (de ex. <b> Magazin Play </b>) în celălalt profil și apoi instalați aplicații de acolo.</string>
     <string name="continue_anyway">Continua oricum</string>
-    <string name="finish_provision_desc">Felicitări! Sunteți la un click distanță de finalizarea configurării Capsule.</string>
     <string name="create_unfreeze_shortcut">Creați Dezgheata și/sau Pornire comandă rapidă</string>
     <string name="setup_wizard_permissions_text">În mod implicit, Capsule nu va cere nicio permisiune individuală. Cu toate acestea, odată ce continuați cu procesul de configurare, Capsule va încerca să configureze un profil de lucru și, prin urmare, va deveni <b>managerul de profil</b> al profilului respectiv.
 \n
@@ -81,12 +78,6 @@
 \n
 \nCapsule este doar o interfață în caracteristica Profil de lucru oferită de sistem. Dacă funcția furnizată de sistem este defectă sau nu este standard, <b>Capsule nu ar putea rezolva problema în mod magic</b>. Dacă utilizați în prezent o versiune Android modificată de furnizor despre care se știe că încalcă Profilurile de lucru, <b>ai fost avertizat</b>. Puteți continua oricum, dar nu există nicio garanție că Capsule se va comporta corect în aceste circumstanțe.</string>
     <string name="setup_wizard_failed">Configurarea a eșuat</string>
-    <string name="setup_wizard_action_required">Actiune necesară</string>
-    <string name="setup_wizard_action_required_text">Acum ar trebui să vedeți o notificare de la Capsule. <b>Faceți clic pe notificarea respectivă</b> pentru a finaliza procesul de configurare.
-\n
-\nDacă nu vedeți notificarea, asigurați-vă că dispozitivul nu este în modul Nu deranjați și încercați să trageți în jos centrul de notificări.
-\n
-\nPentru a reseta Capsule și a începe de la capăt, puteți șterge datele Capsule din Setări.</string>
     <string name="setup_wizard_ready_text">Acum suntem gata să configuram Capsule pentru tine. Dacă dispozitivul dvs. rulează Android 7 sau o versiune anterioară, asigurați-vă mai întâi că dispozitivul dvs. <b>nu</b> este în modul Nu deranja, deoarece va trebui să <b>dați clic pe o notificare</b> mai târziu pentru a finaliza procesul de configurare.
 \n
 \nCând sunteți gata, faceți clic pe „Următorul” pentru a începe procesul de configurare.</string>

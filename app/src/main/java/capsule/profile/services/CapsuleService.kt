@@ -258,9 +258,7 @@ class CapsuleService : Service() {
                 intent.component = ComponentName(this@CapsuleService, DummyActivity::class.java)
                 intent.putExtra("package", app.packageName)
                 intent.putExtra("apk", app.sourceDir)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    intent.putExtra("split_apks", app.splitApks)
-                }
+                intent.putExtra("split_apks", app.splitApks)
                 putCallback(intent, callback)
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 launchActivityForResult(intent, callback)
@@ -329,9 +327,7 @@ class CapsuleService : Service() {
             }
 
             override fun hasInstallPermission(): Boolean =
-                // The unknown-sources consent only exists as an app op since O.
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-                    packageManager.canRequestPackageInstalls()
+                packageManager.canRequestPackageInstalls()
 
             override fun getCrossProfileWidgetProviders(): List<String> {
                 check(isProfileOwner) { "Cannot access cross-profile widget providers without being profile owner" }
@@ -476,7 +472,6 @@ class CapsuleService : Service() {
         val notification =
             Utility.buildNotification(
                 this,
-                important = false,
                 ticker = getString(R.string.service_bridge_title),
                 title = getString(R.string.service_bridge_title),
                 desc = getString(R.string.service_bridge_desc),

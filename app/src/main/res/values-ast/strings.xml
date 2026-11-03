@@ -28,15 +28,6 @@
 \nSi nun encaboxesti la configuración, entós el problema ye qu\'hai incompatibilidaes col sistema o hai conflictos ente Capsule y otros xestores del perfil de trabayu. Desafortunadamente, nun podemos facer muncho más.
 \n
 \nCalca «Siguiente» pa colar.</string>
-    <string name="setup_wizard_action_required">Cuasi acabemos</string>
-    <string name="setup_wizard_action_required_text">Agora habríes ver un avisu de Capsule.<b>Calca nel avisu</b> pa finar el procesu de configuración, por favor.
-\n
-\nSi nun ves esti avisu, asegúrate de que\'l preséu nun ta nel mou «Nun molestar» y espande\'l centru d\'avisos.
-\n
-\nPa reafitar Capsule y volver comenzar, pues llimpiar los datos de Capsule n\'Axustes.</string>
-    <string name="notifications_important">Avisu importante</string>
-    <string name="finish_provision_title">Calca equí pa finar la configuración de Capsule</string>
-    <string name="finish_provision_desc">¡Norabona! Tas a un calcu de finar la configuración de Capsule.</string>
     <string name="service_title">Serviciu d\'aislamientu</string>
     <string name="service_desc">Capsule ta n\'execución…</string>
     <string name="service_auto_freeze_title">Desactivación automática pendiente</string>

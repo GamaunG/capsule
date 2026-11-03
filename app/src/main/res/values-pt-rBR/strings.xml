@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">Serviço de isolamento</string>
-    <string name="notifications_important">Importante (Capsule)</string>
-    <string name="finish_provision_title">Clique aqui para concluir a configuração do Capsule</string>
-    <string name="finish_provision_desc">Parabéns! Você está a um clique para concluir a configuração do Capsule.</string>
     <string name="service_title">Serviço do Capsule</string>
     <string name="service_desc">O Capsule está funcionando …</string>
     <string name="service_auto_freeze_title">Auto-suspensão pendente</string>
@@ -76,7 +73,6 @@
 \nSe você não cancelou a configuração manualmente, então é bem provável que a falha aconteceu devido a um sistema excessivamente modificado ou um conflito entre o Capsule e outros gerenciadores do Perfil de Trabalho. Infelizmente, não há muito que dá para fazer sobre isso.
 \n
 \nClique no \"Próximo\" para sair.</string>
-    <string name="setup_wizard_action_required">Ação necessária</string>
     <string name="setup_wizard_ready">Pronto?</string>
     <string name="setup_wizard_please_wait_text">Estamos tentando criar o Perfil de Trabalho e configurar o Capsule no seu dispositivo.</string>
     <string name="setup_wizard_welcome_text">O Capsule é um app que ajuda a executar outros apps em um perfil isolado. Para isto ele usa o recurso de <b>Perfil de Trabalho</b> no Android.
@@ -94,9 +90,4 @@
 \nAlguns fornecedores de dispositivos introduzem customizações bem invasivas no código fonte do Android, resultando em conflitos, incompatibilidades e comportamentos inesperados. Algumas ROMs personalizadas podem conter as alterações que causam incompatibilidades, mas geralmente estes casos são muito raros em comparação às modificações introduzidas pelo vendedor do telefone.
 \n
 \nO Capsule é meramente uma interface para o recurso do Perfil de Trabalho fornecido pelo sistema. Se o recurso for alterado ou não padrão, o <b>Capsule não poderá resolver o problema por si só</b>. Se você tiver uma versão do Android modificada pelo fornecedor, que é conhecida por quebrar os Perfis de Trabalho, <b>você foi avisado</b>. Você pode proceder mesmo assim, mas não há garantia de que o Capsule funcionará corretamente sob estas circunstâncias.</string>
-    <string name="setup_wizard_action_required_text">Neste momento você deveria ver uma notificação do Capsule. <b>Por favor, clique nessa notificação</b> para terminar o processo de configuração.
-\n
-\nSe você não vê a notificação, certifique-se de que seu dispositivo não está no modo \"Não Perturbe\" e tente recuperar ela da área de notificações deslizando de cima para baixo.
-\n
-\nPara reiniciar o Capsule e começar de novo, você pode limpar os dados em Configurações do app.</string>
 </resources>

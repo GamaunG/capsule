@@ -27,8 +27,6 @@
     <string name="clone_to_work_profile">克隆到 Capsule (工作用戶)</string>
     <string name="unsupported_launcher">無法在您的啓動器上添加快捷方式，請聯繫開發者。</string>
     <string name="device_admin_desc">App 隔離服務</string>
-    <string name="finish_provision_title">點擊這裏完成 Capsule 初始化</string>
-    <string name="finish_provision_desc">您距離使用 Capsule 僅有一步之遙。</string>
     <string name="service_title">Capsule 服務</string>
     <string name="service_desc">Capsule 正在運行 …</string>
     <string name="service_auto_freeze_title">自動凍結等待中</string>
@@ -38,7 +36,6 @@
     <string name="list_item_disabled">[已凍結] %s</string>
     <string name="service_auto_freeze_desc">Capsule 將會在您下次鎖屏時自動凍結使用 \"解凍並運行\" 啓動的應用。</string>
     <string name="fragment_profile_work">Capsule</string>
-    <string name="notifications_important">Capsule 重要通知</string>
     <string name="clone_to_main_profile">克隆到主用戶</string>
     <string name="uninstall_app">卸載</string>
     <string name="freeze_app">凍結</string>
@@ -77,11 +74,6 @@
 \nCapsule可能會在你的設備上正確工作。 一些設備供應商在安卓代碼庫中引入了非常具有侵略性的定製，導致衝突、不兼容和意外行爲。一些定製的ROM也會引入破壞兼容性的變化，但一般來說，與手機供應商引入的不兼容問題相比，這些情況更少發生。
 \n
 \nSheler只是一個進入系統所提供的工作檔案功能的接口。如果系統提供的功能是壞的或不標準的，<b>Capsule不可能自己神奇地解決這個問題</b>。如果你目前使用的是供應商修改過的Android版本，而該版本已知會破壞工作檔案，<b>你已經被警告了</b>。你可以繼續進行，但不能保證Capsule在這些情況下的行爲是正常的。</string>
-    <string name="setup_wizard_action_required_text">您現在應該會看到來自 Capsule 的通知。 <b> 請點擊該通知 </b> 完成設置過程。
-\n
-\n如果您沒有看到通知，請確保您的設備未處於“請勿打擾”模式並嘗試下拉通知中心。
-\n
-\n要重置 Capsule 並重新開始，您可以在設置中清除 Capsule 的數據。</string>
     <string name="setup_wizard_permissions">關於權限的說明</string>
     <string name="setup_wizard_compatibility">兼容性</string>
     <string name="setup_wizard_failed">安裝失敗</string>
@@ -98,5 +90,4 @@
 \n如果您沒有手動取消設置，那麼失敗的最常見原因是系統被大量修改，或者 Capsule 與其他工作配置文件管理器之間存在衝突。 不幸的是，我們對此無能爲力。
 \n
 \n單擊下一步退出。</string>
-    <string name="setup_wizard_action_required">需要採取的行動</string>
 </resources>

@@ -28,11 +28,6 @@
 \nدر غیر این صورت، اگر شما شخصا راه‌اندازی را قطع نکردید مشکل احتمال زیاد به خاطر یک سیستم با تغییرات شدید یا یک ناسازگاری بین Capsule و دیگر مدیریت‌کنندگان Work Profile است. متاسفانه کاری از دست ما بر نمی‌آید.
 \n
 \nبرای خروج روی \"بعدی\" کلیک کنید.</string>
-    <string name="setup_wizard_action_required_text">شما الآن باید یک پیغام (نوتیفیکیشن) از Capsule ببینید. <b>لطفا روی آن پیغام کلیک کرده</b> تا فرایند راه‌اندازی پایان یابد.
-\n
-\nاگر این پیغام را نمی‌بینید، مطمئن شوید که دستگاه شما روی حالت Do Not Disturb نبوده و سعی کنید بخش پیغام‌ها را به پایین بکشید.
-\n
-\nجهت بازگردانی Capsule و شروع از اول می‌توانید داده‌های برنامه را در تتظیمات پاک کنید.</string>
     <string name="service_auto_freeze_desc">Capsule برنامه‌های باز شده از \"شکستن قفل و باز کردن\" را در دستور قفل صفحه‌ی بعدی به طور خودکار قفل می‌کند.</string>
     <string name="create_freeze_all_shortcut">ساخت میانبر قفل گروهی</string>
     <string name="install_app_to_profile">نصب APK داخل شلتر</string>
@@ -52,10 +47,6 @@
     <string name="setup_wizard_please_wait">لطفا صبر کنید…</string>
     <string name="setup_wizard_please_wait_text">در حال تلاش برای راه اندازی Work Profile و Capsule روی دستگاه شما هستیم.</string>
     <string name="setup_wizard_failed">راه‌اندازی به مشکل خورد</string>
-    <string name="setup_wizard_action_required">اقدامی نیاز است</string>
-    <string name="notifications_important">پیام مهم Capsule</string>
-    <string name="finish_provision_title">اینجا کلیک کنید تا راه‌اندازی Capsule تکمیل شود</string>
-    <string name="finish_provision_desc">تبریک می‌گوییم! تنها یک کلیک با تکمیل راه‌اندازی Capsule فاصله دارید.</string>
     <string name="service_title">سرویس Capsule</string>
     <string name="service_desc">Capsule در حال اجرا است …</string>
     <string name="service_auto_freeze_title">منتظر قفل خودکار هستیم</string>

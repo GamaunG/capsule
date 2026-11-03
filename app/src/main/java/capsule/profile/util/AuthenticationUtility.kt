@@ -3,9 +3,7 @@ package capsule.profile.util
 import android.content.Intent
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
-import java.security.InvalidKeyException
 import java.security.MessageDigest
-import java.security.NoSuchAlgorithmException
 import java.util.UUID
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
@@ -32,9 +30,10 @@ object AuthenticationUtility {
                 try {
                     val keyGen = KeyGenerator.getInstance("HmacSHA256")
                     keyGen.init(256)
-                    bytesToHex(keyGen.generateKey().encoded)
-                } catch (e: NoSuchAlgorithmException) {
-                    throw RuntimeException("WTF?")
+                    keyGen.generateKey().encoded.toHexString()
+                } catch (e: java.security.NoSuchAlgorithmException) {
+                    // HmacSHA256 is mandated for every Java implementation.
+                    throw IllegalStateException("HmacSHA256 is unavailable", e)
                 }
             LocalStorageManager.setString(LocalStorageManager.PREF_AUTH_KEY, newKey)
             intent.putExtra("auth_key", newKey)
@@ -97,28 +96,25 @@ object AuthenticationUtility {
         LocalStorageManager.remove(LocalStorageManager.PREF_AUTH_NONCES)
     }
 
-    private fun sign(hexKey: String, action: String?, timestamp: Long, nonce: String?): String =
-        try {
-            val keySpec = SecretKeySpec(hexStringToByteArray(hexKey), "HmacSHA256")
-            val mac = Mac.getInstance("HmacSHA256")
-            mac.init(keySpec)
-            val actionBytes = action?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
-            val nonceBytes = nonce?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
-            val buffer =
-                ByteBuffer.allocate(
-                    4 + actionBytes.size + java.lang.Long.BYTES + 4 + nonceBytes.size,
-                )
-            buffer.putInt(actionBytes.size)
-            buffer.put(actionBytes)
-            buffer.putLong(timestamp)
-            buffer.putInt(nonceBytes.size)
-            buffer.put(nonceBytes)
-            bytesToHex(mac.doFinal(buffer.array()))
-        } catch (e: NoSuchAlgorithmException) {
-            throw RuntimeException("WTF?")
-        } catch (e: InvalidKeyException) {
-            throw RuntimeException("WTF?")
-        }
+    private fun sign(hexKey: String, action: String?, timestamp: Long, nonce: String?): String {
+        // HmacSHA256 exists on every Android version; a missing algorithm or
+        // an invalid key made from a validated 32-byte hex string cannot
+        // happen, so the former crash-wrapper is gone.
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(hexKey.hexToByteArray(), "HmacSHA256"))
+        val actionBytes = action?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
+        val nonceBytes = nonce?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
+        val buffer =
+            ByteBuffer.allocate(
+                4 + actionBytes.size + Long.SIZE_BYTES + 4 + nonceBytes.size,
+            )
+        buffer.putInt(actionBytes.size)
+        buffer.put(actionBytes)
+        buffer.putLong(timestamp)
+        buffer.putInt(nonceBytes.size)
+        buffer.put(nonceBytes)
+        return mac.doFinal(buffer.array()).toHexString()
+    }
 
     private fun isValidKey(key: String?): Boolean =
         key != null && key.length == 64 && key.matches(Regex("[0-9A-Fa-f]{64}"))
@@ -146,29 +142,5 @@ object AuthenticationUtility {
         retained.append(nonce).append(':').append(now)
         LocalStorageManager.setString(LocalStorageManager.PREF_AUTH_NONCES, retained.toString())
         return true
-    }
-
-    private val hexArray = "0123456789ABCDEF".toCharArray()
-
-    private fun bytesToHex(bytes: ByteArray): String {
-        val hexChars = CharArray(bytes.size * 2)
-        for (j in bytes.indices) {
-            val v = bytes[j].toInt() and 0xFF
-            hexChars[j * 2] = hexArray[v ushr 4]
-            hexChars[j * 2 + 1] = hexArray[v and 0x0F]
-        }
-        return String(hexChars)
-    }
-
-    private fun hexStringToByteArray(hex: String): ByteArray {
-        val data = ByteArray(hex.length / 2)
-        for (i in data.indices) {
-            data[i] =
-                (
-                    (Character.digit(hex[i * 2], 16) shl 4) +
-                        Character.digit(hex[i * 2 + 1], 16)
-                ).toByte()
-        }
-        return data
     }
 }

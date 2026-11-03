@@ -2,7 +2,6 @@
 <resources>
     <string name="setup_wizard_compatibility">Uyumluluk</string>
     <string name="setup_wizard_permissions">İzinler hakkında</string>
-    <string name="setup_wizard_action_required">Eylem gerekli</string>
     <string name="setup_wizard_ready">Hazır mısınız?</string>
     <string name="settings">Ayarlar</string>
     <string name="settings_version">Sürüm</string>
@@ -17,7 +16,6 @@
     <string name="uninstall_success">\"%s\" uygulaması başarıyla kaldırıldı</string>
     <string name="device_admin_desc">Uygulama İzolasyon Hizmeti</string>
     <string name="setup_wizard_failed">Kurulum başarısız</string>
-    <string name="notifications_important">Capsule (Önemli)</string>
     <string name="service_title">Capsule Hizmeti</string>
     <string name="service_desc">Capsule şu an çalışıyor…</string>
     <string name="uninstall_app">Kaldır</string>
@@ -43,10 +41,8 @@
     <string name="launch_app_fail">%s uygulaması grafiksel arayüze sahip olmadığı için açılamadı.</string>
     <string name="install_app_to_profile">İş profiline APK dosyası kurun</string>
     <string name="install_app_to_profile_success">Uygulama iş profiline yüklendi.</string>
-    <string name="finish_provision_title">Capsule kurulumunu tamamlamak için buraya tıklayın</string>
     <string name="settings_interaction">Etkileşim</string>
     <string name="documents_ui">Dosya Gezginini aç</string>
-    <string name="finish_provision_desc">Tebrikler! Capsule kurulumu bitmek üzere.</string>
     <string name="service_auto_freeze_now">Şimdi Dondur</string>
     <string name="create_freeze_all_shortcut">Çoklu Dondur Kısayolu Oluştur</string>
     <string name="freeze_all">Çoklu Dondur</string>
@@ -89,11 +85,6 @@
     <string name="setup_wizard_ready_text">Kurulum için hazırlık tamamlandı. Eğer cihazınızın Android sürümü 7 veya daha eskiyse devam etmeden önce lütfen cihazınızın Rahatsız Etmeyin modunda <b>olmadığından</b> emin olun çünkü kurulumun son aşamasında <b>bir bildirime tıklamanız</b> gerekiyor.
 \n
 \nHazır olduğunuzda kurulum sürecini başlatmak için \"İleri\" seçeneğine tıklayın.</string>
-    <string name="setup_wizard_action_required_text">Capsule tarafından size bir bildirim yollandı. Kurulumu tamamlamak için <b>lütfen bu bildirime tıklayın</b>.
-\n
-\nEğer bir bildirim gelmediyse, lütfen cihazınızın Rahatsız Etmeyin modunda olmadığından emin olun ve bildirim çekmecenize bakın.
-\n
-\nKurulum sürecine baştan başlamak isterseniz lütfen uygulama verilerini sıfırlayın ve uygulamayı yeniden başlatın.</string>
     <string name="setup_wizard_please_wait_text">İş Profili oluşturuluyor ve Capsule kurulumu yapılıyor.</string>
     <string name="settings_dont_freeze_foreground">Önplandaki Uygulamalar Dondurulmasın</string>
     <string name="provision_finished">Kurulum tamamlandı. Capsule yeniden başlatılıyor. Eğer otomatik başlatma gerçekleşmezse, lütfen Capsule\'ı ana ekran uygulamanız üzerinden tekrar başlatın.</string>

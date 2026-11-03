@@ -2,9 +2,6 @@
 <resources>
     <string name="device_admin_desc">App 隔离服务</string>
     <!-- Notifications -->
-    <string name="notifications_important">Capsule 重要通知</string>
-    <string name="finish_provision_title">点击这里完成 Capsule 初始化</string>
-    <string name="finish_provision_desc">您距离使用 Capsule 仅有一步之遥。</string>
     <string name="service_title">Capsule 服务</string>
     <string name="service_desc">Capsule 正在运行 …</string>
     <string name="service_auto_freeze_title">自动冻结等待中</string>
@@ -73,7 +70,6 @@
     <string name="setup_wizard_please_wait">请稍等…</string>
     <string name="setup_wizard_please_wait_text">我们正在尝试初始化工作档案并在您的设备上设置 Capsule。</string>
     <string name="setup_wizard_failed">安装失败</string>
-    <string name="setup_wizard_action_required">需要采取的行动</string>
     <string name="setup_wizard_ready_text">我们现在已准备好为您设置 Capsule。如果您的设备运行的是 Android 7 或更低版本，请首先确保您的设备是 <b> 不是 </b> 请勿打扰模式，因为您需要 <b> 点击通知 </b> 稍后完成设置过程。
 \n
 \n准备好后，单击“下一步”开始设置过程。</string>
@@ -101,9 +97,4 @@
 \n点击 \"下一步\"，我们将向你提供更多关于 Capsule 的信息，并带领你完成设置。
 \n
 \n我们建议你仔细阅读以下所有的页面。</string>
-    <string name="setup_wizard_action_required_text">您现在应该会看到来自 Capsule 的通知。 <b> 请点击该通知 </b> 完成设置过程。
-\n
-\n如果您没有看到通知，请确保您的设备未处于“请勿打扰”模式并尝试下拉通知中心。
-\n
-\n要重置 Capsule 并重新开始，您可以在设置中清除 Capsule 的数据。</string>
 </resources>

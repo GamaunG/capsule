@@ -125,8 +125,6 @@ import java.text.DateFormat
 class MainActivity : ComponentActivity() {
     private val startSetup: ActivityResultLauncher<Void?> =
         registerForActivityResult(SetupWizardContract()) { setupWizardCb(it) }
-    private val resumeSetup: ActivityResultLauncher<Void?> =
-        registerForActivityResult(ResumeSetupContract()) { setupWizardCb(it) }
     private val selectApk: ActivityResultLauncher<Void?> =
         registerForActivityResult(
             OpenApkContract(),
@@ -338,16 +336,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun init() {
-        val settingUp = storage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP)
         val hasSetup = storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)
         val profileExists = Utility.getWorkProfileUserHandle(this) != null
-
-        if (settingUp && !profileExists) {
-            // Provisioning finished, but the app inside the profile has never
-            // been brought up (pre-Oreo notification flow).
-            resumeSetup.launch(null)
-            return
-        }
 
         // Resolution-based checks are unreliable while a profile is paused,
         // so "does a profile exist" is answered from the user list only.
@@ -761,9 +751,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
     }
-
-    fun getOtherService(isRemote: Boolean): ICapsuleService? =
-        if (isRemote) serviceMain else serviceWork
 
     /** Subscribes to package changes in both profiles while the UI is visible. */
     private fun registerPackageEvents() {
@@ -1466,7 +1453,6 @@ class MainActivity : ComponentActivity() {
 
     /** True while the work profile user exists but is still unlocking. */
     private fun isWorkUserLocked(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
         val manager = getSystemService(UserManager::class.java)
         val user = Utility.getWorkProfileUserHandle(this) ?: return false
         return !manager.isUserUnlocked(user)

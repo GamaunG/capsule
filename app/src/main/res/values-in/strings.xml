@@ -27,15 +27,6 @@
     <string name="setup_wizard_please_wait">Silakan tunggu. . .</string>
     <string name="setup_wizard_please_wait_text">Kami mencoba menginisialisasi Work Profile dan menyiapkan Capsule di perangkat Anda.</string>
     <string name="setup_wizard_failed">Penyiapan gagal</string>
-    <string name="setup_wizard_action_required">Diperlukan tindakan</string>
-    <string name="setup_wizard_action_required_text">Anda sekarang akan melihat notifikasi dari Capsule. <b>Silakan klik notifikasi itu</b> untuk menyelesaikan proses penyiapan.
-\n
-\nJika Anda tidak melihat notifikasi, pastikan perangkat Anda tidak dalam mode Jangan Ganggu dan coba turunkan pusat notifikasi.
-\n
-\nUntuk menyetel ulang Capsule dan memulai kembali, Anda dapat menghapus data Capsule di Setelan.</string>
-    <string name="notifications_important">Penampungan Penting</string>
-    <string name="finish_provision_title">Klik di sini untuk menyelesaikan penyiapan Capsule</string>
-    <string name="finish_provision_desc">Selamat! Anda hanya perlu satu klik untuk menyelesaikan penyiapan Capsule.</string>
     <string name="service_title">Layanan Capsule</string>
     <string name="service_desc">Capsule sekarang berjalan …</string>
     <string name="service_auto_freeze_title">Pembekuan otomatis tertunda</string>

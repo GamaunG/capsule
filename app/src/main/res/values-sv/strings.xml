@@ -26,8 +26,6 @@
     <string name="fragment_profile_work">Capsule</string>
     <string name="uninstall_fail_system_app">Det går inte att avinstallera systemappar i en profil som Capsule inte har kontroll över.</string>
     <string name="device_admin_desc">App-isoleringstjänst</string>
-    <string name="notifications_important">Viktigt om Capsule</string>
-    <string name="finish_provision_title">Klicka här för att slutföra installationen av Capsule</string>
     <string name="service_title">Capsule-tjänst</string>
     <string name="service_desc">Capsule är nu igång…</string>
     <string name="setup_wizard_welcome_text">Capsule är en applikation som kan hjälpa dig att köra andra applikationer i en isolerad profil. Den gör det genom att använda funktionen <b>Arbetsprofil</b> i Android.
@@ -70,13 +68,7 @@
     <string name="setup_wizard_please_wait">Vänta…</string>
     <string name="setup_wizard_please_wait_text">Vi försöker initiera Work Profile och konfigurera Capsule på din enhet.</string>
     <string name="setup_wizard_failed">Konfigurationen misslyckades</string>
-    <string name="setup_wizard_action_required">Åtgärd krävs</string>
     <string name="settings_auto_freeze_service">Automatisk frystjänst</string>
-    <string name="setup_wizard_action_required_text">Du bör nu se en avisering från Capsule. <b>Klicka på det aviseringen</b> för att slutföra installationsprocessen.
-\n
-\nOm du inte ser aviseringen, se till att din enhet inte är i \"Stör ej\"-läge och försök dra ner meddelandecentret.
-\n
-\nFör att återställa Capsule och börja om kan du rensa Capsules data i Inställningar.</string>
     <string name="setup_wizard_failed_text">Tyvärr kunde vi inte konfigurera Capsule åt dig.
 \n
 \nOm din enhet redan hade en arbetsprofil konfigurerad, antingen från en tidigare installation av Capsule eller från en annan applikation, måste du ta bort den profilen i Inställningar -&gt; Konto innan Capsule kan fortsätta.
@@ -94,7 +86,6 @@
 \nVissa enhetsleverantörer introducerar mycket invasiva anpassningar i Android-kodbasen, vilket resulterar i konflikter, inkompatibilitet och oväntat beteende. Vissa “custom ROMs” kan också införa kompatibilitetsbrytande förändringar, men i allmänhet är dessa sällsynta jämfört med telefonleverantörsintroducerade inkompatibiliteter.
 \n
 \nCapsule är bara ett gränssnitt till funktionen \"Arbetsprofil\" som tillhandahålls av Android-systemet. Om funktionen som tillhandahålls av systemet är trasig eller icke-standard, kan <b>Capsule inte magiskt lösa problemet på egen hand</b>. Om du för närvarande använder en leverantörsmodifierad Android-version som är känd för att bryta arbetsprofilsfunktionen, <b>har du blivit varnad</b>. Du kan fortsätta ändå, men det finns ingen garanti för att Capsule ska bete sig korrekt under dessa omständigheter.</string>
-    <string name="finish_provision_desc">Grattis! Du är ett klick från att slutföra installationen av Capsule.</string>
     <string name="service_auto_freeze_title">I väntan på automatisk frysning</string>
     <string name="service_auto_freeze_desc">Capsule kommer att automatiskt frysa appar som startas från \"Tina upp &amp; Starta\" vid nästa skärmlåshändelse.</string>
     <string name="list_item_disabled">[Frusen] %s</string>

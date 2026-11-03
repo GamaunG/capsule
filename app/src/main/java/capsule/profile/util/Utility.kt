@@ -25,7 +25,6 @@ import android.os.Environment
 import android.os.UserHandle
 import android.os.UserManager
 import android.provider.MediaStore
-import android.provider.Settings
 import androidx.annotation.RequiresApi
 import capsule.profile.R
 import capsule.profile.receivers.CapsuleDeviceAdminReceiver
@@ -38,7 +37,6 @@ import java.io.InputStreamReader
 /** Shared helpers for profile management, compat checks and notifications. */
 object Utility {
     const val NOTIFICATION_CHANNEL_ID = "CapsuleService"
-    const val NOTIFICATION_CHANNEL_IMPORTANT = "CapsuleService-Important"
 
     fun isProfileOwner(context: Context): Boolean =
         context
@@ -290,11 +288,6 @@ object Utility {
         manager.clearUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
         manager.clearUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            // Pre-Oreo polyfill for DISALLOW_INSTALL_UNKNOWN_SOURCES. Crashes on O+.
-            manager.setSecureSetting(adminComponent, Settings.Secure.INSTALL_NON_MARKET_APPS, "1")
-        }
-
         manager.addUserRestriction(adminComponent, UserManager.ALLOW_PARENT_PROFILE_APP_LINKING)
     }
 
@@ -349,9 +342,8 @@ object Utility {
         LocalStorageManager.setStringList(pref, list)
     }
 
-    /** Creates a launcher shortcut, with a legacy broadcast fallback before Oreo.
-     * Returns false when the launcher does not support pinning. */
-    @Suppress("DEPRECATION")
+    /** Creates a launcher shortcut. Returns false when the launcher does not
+     * support pinning. */
     fun createLauncherShortcut(
         context: Context,
         launchIntent: Intent,
@@ -359,41 +351,28 @@ object Utility {
         id: String,
         label: String,
     ): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val shortcutManager = context.getSystemService(ShortcutManager::class.java)
-            if (shortcutManager.isRequestPinShortcutSupported) {
-                val info =
-                    ShortcutInfo
-                        .Builder(context, id)
-                        .setIntent(launchIntent)
-                        .setIcon(icon)
-                        .setShortLabel(label)
-                        .setLongLabel(label)
-                        .build()
-                val addIntent = shortcutManager.createShortcutResultIntent(info)
-                shortcutManager.requestPinShortcut(
-                    info,
-                    PendingIntent
-                        .getBroadcast(
-                            context,
-                            0,
-                            addIntent,
-                            PendingIntent.FLAG_IMMUTABLE,
-                        ).intentSender,
-                )
-                return true
-            }
-            return false
-        } else {
-            val shortcutIntent = Intent("com.android.launcher.action.INSTALL_SHORTCUT")
-            shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, launchIntent)
-            shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_NAME, label)
-            icon.loadDrawable(context)?.let { drawable ->
-                shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_ICON, drawableToBitmap(drawable))
-            }
-            context.sendBroadcast(shortcutIntent)
-            return true
-        }
+        val shortcutManager = context.getSystemService(ShortcutManager::class.java)
+        if (!shortcutManager.isRequestPinShortcutSupported) return false
+        val info =
+            ShortcutInfo
+                .Builder(context, id)
+                .setIntent(launchIntent)
+                .setIcon(icon)
+                .setShortLabel(label)
+                .setLongLabel(label)
+                .build()
+        val addIntent = shortcutManager.createShortcutResultIntent(info)
+        shortcutManager.requestPinShortcut(
+            info,
+            PendingIntent
+                .getBroadcast(
+                    context,
+                    0,
+                    addIntent,
+                    PendingIntent.FLAG_IMMUTABLE,
+                ).intentSender,
+        )
+        return true
     }
 
     // Scaled bitmap loading: https://developer.android.com/topic/performance/graphics/load-bitmap
@@ -446,62 +425,37 @@ object Utility {
     }
 
     // Creating a notification channel is an IPC round-trip; the channel
-    // persists per id, so each one only needs to be registered once.
+    // persists per id, so it only needs to be registered once.
     private val createdChannels =
         java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
-    /** Cross-version compatible notification builder with silent channels. */
+    /** Notification on the app's single silent service channel. */
     @Suppress("DEPRECATION")
     fun buildNotification(
         context: Context,
-        important: Boolean,
         ticker: String,
         title: String,
         desc: String,
         icon: Int,
     ): Notification {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val id = if (important) NOTIFICATION_CHANNEL_IMPORTANT else NOTIFICATION_CHANNEL_ID
-            val nm = context.getSystemService(NotificationManager::class.java)
-            if (createdChannels.add(id)) {
-                val channel =
-                    NotificationChannel(
-                        id,
-                        if (important) {
-                            context.getString(R.string.notifications_important)
-                        } else {
-                            context.getString(R.string.app_name)
-                        },
-                        if (important) {
-                            NotificationManager.IMPORTANCE_HIGH
-                        } else {
-                            NotificationManager.IMPORTANCE_MIN
-                        },
-                    )
-                if (important) {
-                    channel.enableVibration(true)
-                } else {
-                    channel.enableVibration(false)
-                    channel.enableLights(false)
-                }
-                nm.createNotificationChannel(channel)
-            }
-            return Notification
-                .Builder(context, id)
-                .setTicker(ticker)
-                .setContentTitle(title)
-                .setContentText(desc)
-                .setSmallIcon(icon)
-                .build()
+        val nm = context.getSystemService(NotificationManager::class.java)
+        if (createdChannels.add(NOTIFICATION_CHANNEL_ID)) {
+            val channel =
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    context.getString(R.string.app_name),
+                    NotificationManager.IMPORTANCE_MIN,
+                )
+            channel.enableVibration(false)
+            channel.enableLights(false)
+            nm.createNotificationChannel(channel)
         }
         return Notification
-            .Builder(context)
+            .Builder(context, NOTIFICATION_CHANNEL_ID)
             .setTicker(ticker)
             .setContentTitle(title)
             .setContentText(desc)
             .setSmallIcon(icon)
-            .setPriority(
-                if (important) Notification.PRIORITY_MAX else Notification.PRIORITY_MIN,
-            ).build()
+            .build()
     }
 }

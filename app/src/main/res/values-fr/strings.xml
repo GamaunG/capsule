@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="service_auto_freeze_now">Geler Maintenant</string>
-    <string name="notifications_important">Capsule Important</string>
     <string name="device_admin_desc">Service d\'isolation d\'application</string>
-    <string name="finish_provision_title">Cliquez ici pour finir de configurer Capsule</string>
-    <string name="finish_provision_desc">Félicitations ! Vous êtes à un clic de finir de configurer Capsule.</string>
     <string name="service_title">Service Capsule</string>
     <string name="service_desc">Capsule est en fonctionnement…</string>
     <string name="service_auto_freeze_title">Gel automatique en attente</string>
@@ -63,12 +60,6 @@
     <string name="settings_cross_profile_file_chooser">Navigation de Documents</string>
     <string name="setup_wizard_please_wait">Veuillez patienter…</string>
     <string name="setup_wizard_failed">Échec de l\'installation</string>
-    <string name="setup_wizard_action_required">Action requise</string>
-    <string name="setup_wizard_action_required_text">Vous devriez maintenant voir une notification de Capsule. <b>Veuillez cliquer sur cette notification</b> pour terminer le processus d\'installation.
-\n
-\nSi vous ne voyez pas la notification, assurez-vous que votre appareil n\'est pas en mode Ne pas déranger et essayez de tirer le centre de notifications vers le bas.
-\n
-\nPour réinitialiser Capsule et recommencer, vous pouvez vider l\'espace de stockage de Capsule dans les paramètres de votre téléphone.</string>
     <string name="setup_wizard_please_wait_text">Nous essayons d\'initialiser le profil professionnel et de configurer Capsule sur votre appareil.</string>
     <string name="setup_wizard_failed_text">Nous avons le regret de vous informer que nous n\'avons pas réussi à configurer Capsule.
 \n
