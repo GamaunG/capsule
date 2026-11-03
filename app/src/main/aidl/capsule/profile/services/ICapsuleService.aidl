@@ -16,7 +16,6 @@ interface ICapsuleService {
     // Oneway on purpose: it is queued into a freezer-frozen service process
     // and thaws it, which a synchronous call can never do.
     oneway void probeAlive(in IAliveCallback callback);
-    void ping();
     void stopCapsuleService(boolean kill);
     void getApps(IGetAppsCallback callback, boolean showAll);
     void loadIcon(in ApplicationInfoWrapper info, ILoadIconCallback callback);

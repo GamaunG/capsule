@@ -14,13 +14,6 @@ object Fuzzy {
     private const val SCORE_CONTAINS = 4000
     private const val SCORE_SUBSEQUENCE = 1000
 
-    /** All query tokens must match (AND); the best field decides the score. */
-    fun matches(
-        label: String,
-        packageName: String,
-        query: String,
-    ): Boolean = score(label, packageName, query) > 0
-
     /**
      * Returns the relevance of [label] / [packageName] for [query]; 0 means no
      * match. Package-name matches rank slightly below label matches so a hit

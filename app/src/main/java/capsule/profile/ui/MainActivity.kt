@@ -149,8 +149,14 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) {
-            val work = serviceWork ?: return@registerForActivityResult
+            val work = serviceWork
             refreshScope.launch {
+                if (work == null) {
+                    // The bridge was lost while the settings screen was up;
+                    // the reconnect paths own the recovery.
+                    snackbarHostState.showSnackbar(getString(R.string.install_app_to_profile_fail))
+                    return@launch
+                }
                 val granted =
                     withContext(Dispatchers.IO) {
                         WorkServiceHolder.ensureAlive() &&
@@ -184,8 +190,8 @@ class MainActivity : ComponentActivity() {
         }
 
     private val selectCert: ActivityResultLauncher<Array<String>> =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) installCertificate(uri)
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) installCertificates(uris)
         }
 
     /**
@@ -302,6 +308,13 @@ class MainActivity : ComponentActivity() {
     private var packageEventsJob: Job? = null
     private val packageEventsHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
+    // Watches the profile set itself: a profile deleted or added while the
+    // UI is open must re-evaluate the work tab immediately, instead of
+    // waiting for the next resume (the state used to stick on the
+    // "unreachable" banner after deleting a foreign profile — there was no
+    // bridge whose death could have triggered the recovery).
+    private var profileEventsReceiver: android.content.BroadcastReceiver? = null
+
     // Guards against overlapping in-place recoveries launched from onResume.
     private var recoveryInFlight = false
 
@@ -341,6 +354,11 @@ class MainActivity : ComponentActivity() {
         workAbsent.value = !hasSetup && !profileExists
         if (!hasSetup && !profileExists) {
             // First run with no profile at all.
+            startSetup.launch(null)
+        } else if (!hasSetup && Utility.isForeignWorkProfilePresent(this)) {
+            // A profile exists but Capsule cannot own it: it is managed by
+            // another app, and provisioning is blocked until it is gone. That
+            // blocker belongs on the wizard, where all attention is on it.
             startSetup.launch(null)
         }
 
@@ -385,7 +403,6 @@ class MainActivity : ComponentActivity() {
                     // the resume path rebinds.
                 }
             },
-            false,
         )
         scheduleBindWatchdog()
     }
@@ -410,17 +427,19 @@ class MainActivity : ComponentActivity() {
      * when the main service binds, on resume and after Resume was pressed.
      */
     private fun connectWorkService() {
-        if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP) &&
-            Utility.getWorkProfileUserHandle(this) == null
-        ) {
+        val profileExists = Utility.getWorkProfileUserHandle(this) != null
+        if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP) && !profileExists) {
             // Nothing was ever provisioned: the work tab offers the setup.
-            workAbsent.value = true
-            workPaused.value = false
-            workUnreachable.value = false
-            serviceWork = null
-            WorkServiceHolder.update(null)
-            servicesReady.value = false
-            workReconnecting.value = false
+            showWorkAbsent()
+            return
+        }
+        if (!storage.getBoolean(LocalStorageManager.PREF_HAS_SETUP) &&
+            Utility.isForeignWorkProfilePresent(this)
+        ) {
+            // A profile managed by another app blocks provisioning for good:
+            // offer the setup instead of probing something we can never
+            // reach — the wizard explains the blocker.
+            showWorkAbsent()
             return
         }
         workAbsent.value = false
@@ -434,6 +453,18 @@ class MainActivity : ComponentActivity() {
         workPaused.value = false
         workUnreachable.value = false
         tryStartWorkService()
+    }
+
+    /** Transitions the UI to "no profile, offer the setup". */
+    private fun showWorkAbsent() {
+        serviceWork = null
+        WorkServiceHolder.update(null)
+        servicesReady.value = false
+        workReconnecting.value = false
+        workListState.value = null
+        workPaused.value = false
+        workUnreachable.value = false
+        workAbsent.value = true
     }
 
     private fun showWorkBanner(paused: Boolean) {
@@ -475,11 +506,21 @@ class MainActivity : ComponentActivity() {
                 showWorkBanner(paused = true)
             }
 
+            Utility.isForeignWorkProfilePresent(this) -> {
+                // The existing profile can never be ours (managed by another
+                // app), or our own profile is gone and a foreign one took its
+                // place: offer the setup; the wizard shows the blocker.
+                CapsuleLog.w("The work profile is managed by another app; offering the setup")
+                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
+                storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
+                showWorkAbsent()
+            }
+
             Utility.getWorkProfileUserHandle(this) != null -> {
                 // The profile resolves but our own instance inside it does
-                // not: it may be managed by another app, removed, or simply
-                // still booting after Work Mode came back. Give the boot a
-                // few bounded retries before settling on the banner.
+                // not: it may be removed, or simply still booting after Work
+                // Mode came back. Give the boot a few bounded retries before
+                // settling on the banner.
                 CapsuleLog.w("Work profile exists but cannot be reached yet; showing the banner and retrying")
                 showWorkBanner(paused = false)
                 scheduleUnreachableRetry()
@@ -491,14 +532,7 @@ class MainActivity : ComponentActivity() {
                 CapsuleLog.w("No work profile found; offering the setup")
                 storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
                 storage.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
-                serviceWork = null
-                WorkServiceHolder.update(null)
-                servicesReady.value = false
-                workReconnecting.value = false
-                workListState.value = null
-                workPaused.value = false
-                workUnreachable.value = false
-                workAbsent.value = true
+                showWorkAbsent()
             }
         }
     }
@@ -583,7 +617,15 @@ class MainActivity : ComponentActivity() {
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
         // Full settings snapshot: heals any preference the work profile missed.
         intent.putExtra("settings_sync", SettingsManager.buildSyncBundle())
-        Utility.transferIntentToProfile(this, intent)
+        try {
+            Utility.transferIntentToProfile(this, intent)
+        } catch (e: IllegalStateException) {
+            // The profile vanished between the probe and the bind.
+            CapsuleLog.w("The work profile disappeared before the bind", e)
+            workBindInFlight = false
+            onWorkServiceUnreachable()
+            return
+        }
         bindWorkService.launch(intent)
     }
 
@@ -725,33 +767,67 @@ class MainActivity : ComponentActivity() {
 
     /** Subscribes to package changes in both profiles while the UI is visible. */
     private fun registerPackageEvents() {
-        if (packageEventsCallback != null) return
-        val callback =
-            object : LauncherApps.Callback() {
-                override fun onPackageAdded(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
+        if (packageEventsCallback == null) {
+            val callback =
+                object : LauncherApps.Callback() {
+                    override fun onPackageAdded(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
 
-                override fun onPackageRemoved(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
+                    override fun onPackageRemoved(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
 
-                override fun onPackageChanged(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
+                    override fun onPackageChanged(packageName: String?, user: android.os.UserHandle?) = onPackageEvent()
 
-                override fun onPackagesAvailable(
-                    packageNames: Array<out String>?,
-                    user: android.os.UserHandle?,
-                    replacing: Boolean,
-                ) = onPackageEvent()
+                    override fun onPackagesAvailable(
+                        packageNames: Array<out String>?,
+                        user: android.os.UserHandle?,
+                        replacing: Boolean,
+                    ) = onPackageEvent()
 
-                override fun onPackagesUnavailable(
-                    packageNames: Array<out String>?,
-                    user: android.os.UserHandle?,
-                    replacing: Boolean,
-                ) = onPackageEvent()
+                    override fun onPackagesUnavailable(
+                        packageNames: Array<out String>?,
+                        user: android.os.UserHandle?,
+                        replacing: Boolean,
+                    ) = onPackageEvent()
+                }
+            try {
+                getSystemService(LauncherApps::class.java).registerCallback(callback, packageEventsHandler)
+                packageEventsCallback = callback
+            } catch (e: Exception) {
+                // Without events the lists simply refresh on resume, as before.
+                CapsuleLog.w("Could not subscribe to package events", e)
             }
-        try {
-            getSystemService(LauncherApps::class.java).registerCallback(callback, packageEventsHandler)
-            packageEventsCallback = callback
-        } catch (e: Exception) {
-            // Without events the lists simply refresh on resume, as before.
-            CapsuleLog.w("Could not subscribe to package events", e)
+        }
+        if (profileEventsReceiver == null) {
+            val receiver =
+                object : android.content.BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        CapsuleLog.i("The profile set changed (${intent.action}); re-evaluating")
+                        when (intent.action) {
+                            Intent.ACTION_MANAGED_PROFILE_REMOVED,
+                            Intent.ACTION_MANAGED_PROFILE_ADDED,
+                            -> {
+                                if (!servicesReady.value) {
+                                    // No bridge to lose: classify the new state
+                                    // right away (covers the no-bridge banner
+                                    // case the death recipient cannot see).
+                                    onWorkServiceUnreachable()
+                                }
+                                // A live bridge reacts through its death
+                                // recipient when its process is killed.
+                            }
+                        }
+                    }
+                }
+            val filter =
+                android.content.IntentFilter().apply {
+                    addAction(Intent.ACTION_MANAGED_PROFILE_ADDED)
+                    addAction(Intent.ACTION_MANAGED_PROFILE_REMOVED)
+                }
+            try {
+                registerReceiver(receiver, filter)
+                profileEventsReceiver = receiver
+            } catch (e: Exception) {
+                CapsuleLog.w("Could not subscribe to profile events", e)
+            }
         }
     }
 
@@ -762,6 +838,10 @@ class MainActivity : ComponentActivity() {
         packageEventsCallback = null
         packageEventsJob?.cancel()
         packageEventsJob = null
+        profileEventsReceiver?.let {
+            runCatching { unregisterReceiver(it) }
+        }
+        profileEventsReceiver = null
     }
 
     /**
@@ -802,7 +882,11 @@ class MainActivity : ComponentActivity() {
                 },
             )
         } catch (e: android.os.RemoteException) {
-            throw RuntimeException(e)
+            // The work service died right after the binder was handed over.
+            // Crashing here (the old behavior) would take the whole UI down;
+            // the quiet reconnect owns the recovery instead.
+            CapsuleLog.w("Could not register the activity proxies; the bridge died", e)
+            silentlyReconnectWorkService()
         }
     }
 
@@ -825,6 +909,17 @@ class MainActivity : ComponentActivity() {
         }
 
         if (!servicesReady.value) {
+            // A profile that existed when we paused may be gone now: leaving
+            // a settled banner up would hide the setup offer until a full
+            // app restart (seen after deleting a foreign profile in V14).
+            if (!storage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP) &&
+                Utility.getWorkProfileUserHandle(this) == null &&
+                (workUnreachable.value || workPaused.value)
+            ) {
+                storage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
+                showWorkAbsent()
+                return
+            }
             // While the setup wizard owns the flow there is nothing to bind;
             // recovering here would probe for a profile that does not exist
             // yet and dead-end with a misleading banner.
@@ -1384,8 +1479,13 @@ class MainActivity : ComponentActivity() {
         REJECTED,
     }
 
-    /** Installs the certificate file behind [uri] into the profile store. */
-    private fun installCertificate(uri: Uri) {
+    /**
+     * Installs the picked certificate files into the profile store, one
+     * after another. A dead bridge aborts the rest; rejected files are
+     * counted and reported in the summary so a batch is never silently
+     * half-finished.
+     */
+    private fun installCertificates(uris: List<Uri>) {
         val work = serviceWork
         if (work == null) {
             refreshScope.launch { showCertOutcome(CertOutcome.BRIDGE_DOWN) }
@@ -1393,24 +1493,48 @@ class MainActivity : ComponentActivity() {
         }
         certBusy = true
         refreshScope.launch {
-            val outcome =
-                withContext(Dispatchers.IO) {
-                    try {
-                        val bytes =
-                            contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                ?: return@withContext CertOutcome.REJECTED
-                        if (!WorkServiceHolder.ensureAlive()) {
-                            return@withContext CertOutcome.BRIDGE_DOWN
+            var installed = 0
+            var rejected = 0
+            var bridgeDown = false
+            for (uri in uris) {
+                val outcome =
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val bytes =
+                                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?: return@withContext CertOutcome.REJECTED
+                            if (!WorkServiceHolder.ensureAlive()) {
+                                return@withContext CertOutcome.BRIDGE_DOWN
+                            }
+                            // Only a survived call returning false blames the file.
+                            if (work.installCaCert(bytes)) CertOutcome.OK else CertOutcome.REJECTED
+                        } catch (e: Exception) {
+                            CapsuleLog.w("Failed to install the certificate", e)
+                            CertOutcome.BRIDGE_DOWN
                         }
-                        // Only a survived call returning false blames the file.
-                        if (work.installCaCert(bytes)) CertOutcome.OK else CertOutcome.REJECTED
-                    } catch (e: Exception) {
-                        CapsuleLog.w("Failed to install the certificate", e)
-                        CertOutcome.BRIDGE_DOWN
+                    }
+                when (outcome) {
+                    CertOutcome.OK -> {
+                        installed++
+                    }
+                    CertOutcome.REJECTED -> {
+                        rejected++
+                    }
+                    CertOutcome.BRIDGE_DOWN -> {
+                        bridgeDown = true
+                        break
                     }
                 }
-            showCertOutcome(outcome, install = true)
-            if (outcome == CertOutcome.OK) reloadCerts()
+            }
+            certBusy = false
+            val message =
+                when {
+                    bridgeDown -> getString(R.string.work_bridge_unavailable)
+                    rejected == 0 -> getString(R.string.cert_install_summary_ok, installed)
+                    else -> getString(R.string.cert_install_summary_partial, installed, rejected)
+                }
+            snackbarHostState.showSnackbar(message)
+            if (installed > 0) reloadCerts()
         }
     }
 
@@ -1436,18 +1560,18 @@ class MainActivity : ComponentActivity() {
                         CertOutcome.BRIDGE_DOWN
                     }
                 }
-            showCertOutcome(outcome, install = false)
+            showCertOutcome(outcome)
             if (outcome == CertOutcome.OK) reloadCerts()
         }
     }
 
-    /** Ends a certificate operation: clears the busy flag and reports. */
-    private suspend fun showCertOutcome(outcome: CertOutcome, install: Boolean = true) {
+    /** Ends a certificate removal: clears the busy flag and reports. */
+    private suspend fun showCertOutcome(outcome: CertOutcome) {
         certBusy = false
         val message =
             when (outcome) {
                 CertOutcome.OK -> {
-                    getString(if (install) R.string.cert_install_success else R.string.cert_remove_success)
+                    getString(R.string.cert_remove_success)
                 }
 
                 CertOutcome.BRIDGE_DOWN -> {
@@ -1455,7 +1579,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 CertOutcome.REJECTED -> {
-                    getString(if (install) R.string.cert_install_failed else R.string.cert_remove_failed)
+                    getString(R.string.cert_remove_failed)
                 }
             }
         snackbarHostState.showSnackbar(message)
@@ -1543,6 +1667,17 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(mainState) { mainState.refresh() }
 
+        // Closing the search must also drop the filter, or the list keeps
+        // hiding matches with no visible way to clear the query.
+        BackHandler(enabled = searchActive) { searchActive = false }
+        LaunchedEffect(searchActive) {
+            if (!searchActive) {
+                searchQuery = ""
+                mainState.searchQuery = ""
+                workState?.searchQuery = ""
+            }
+        }
+
         LaunchedEffect(mainState.apps) {
             // A list that is still loading is transiently empty; publishing
             // that as the badge set would blank every "installed in the other
@@ -1590,7 +1725,7 @@ class MainActivity : ComponentActivity() {
                                 Icon(search, contentDescription = stringResource(R.string.search))
                             }
                             IconButton(onClick = { menuOpen = true }) {
-                                Icon(more_vert, contentDescription = null)
+                                Icon(more_vert, contentDescription = stringResource(R.string.more_options))
                             }
                             MainDropdownMenu(
                                 expanded = menuOpen,
@@ -1747,12 +1882,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.verticalScroll(rememberScrollState()),
                     ) {
                         ResumeMethod.entries.forEach { method ->
-                            val supported = method.isSupported()
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 onClick = { onSelect(method) },
-                                enabled = supported,
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
@@ -1768,12 +1901,7 @@ class MainActivity : ComponentActivity() {
                                             text = stringResource(method.labelRes),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold,
-                                            color =
-                                                if (supported) {
-                                                    MaterialTheme.colorScheme.onSurface
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                                },
+                                            color = MaterialTheme.colorScheme.onSurface,
                                         )
                                         Text(
                                             text = stringResource(method.hintRes),

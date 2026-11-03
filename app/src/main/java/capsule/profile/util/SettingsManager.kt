@@ -61,9 +61,10 @@ object SettingsManager {
         try {
             Utility.transferIntentToProfile(appContext, intent)
             appContext.startActivity(intent)
-        } catch (e: IllegalStateException) {
-            // The other side is not available; the snapshot sent with the next
-            // START_SERVICE bind repairs any divergence.
+        } catch (e: Exception) {
+            // The other side is not available, or the background launch was
+            // blocked; the snapshot sent with the next START_SERVICE bind
+            // repairs any divergence.
             CapsuleLog.w("Preference ${intent.getStringExtra("name")} could not be synced to the other profile", e)
         }
     }
@@ -92,8 +93,8 @@ object SettingsManager {
      * to skip redundant policy re-enforcement.
      */
     fun applySyncBundle(bundle: Bundle): Boolean {
-        val prefs = bundle.keySet().filter { it != null }
-        var changed = false
+        val prefs = bundle.keySet()
+        var changed = 0
         for (name in prefs) {
             val value: Any? =
                 when (name) {
@@ -115,14 +116,23 @@ object SettingsManager {
                 is Boolean -> {
                     if (storage.getBoolean(name) != value) {
                         storage.setBoolean(name, value)
-                        changed = true
+                        changed++
                     }
                 }
 
                 is Int -> {
-                    if (storage.getInt(name) != value) {
+                    // The delay getter maps the unset marker to 0; compare
+                    // through the same mapping so a fresh work side does not
+                    // report a phantom change on every first bind.
+                    val current =
+                        if (name == LocalStorageManager.PREF_AUTO_FREEZE_DELAY) {
+                            getAutoFreezeDelay()
+                        } else {
+                            storage.getInt(name)
+                        }
+                    if (current != value) {
                         storage.setInt(name, value)
-                        changed = true
+                        changed++
                     }
                 }
 
@@ -131,16 +141,16 @@ object SettingsManager {
                     val list = value as List<String>
                     if (storage.getStringList(name) != list) {
                         storage.setStringList(name, list)
-                        changed = true
+                        changed++
                     }
                 }
             }
         }
-        if (changed) {
-            CapsuleLog.i("Applied ${prefs.size} synced preferences from the other profile")
+        if (changed > 0) {
+            CapsuleLog.i("Applied $changed of ${prefs.size} synced preferences from the other profile")
             applyAll()
         }
-        return changed
+        return changed > 0
     }
 
     fun applyAll() {

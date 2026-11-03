@@ -95,17 +95,9 @@ class FileShuttleService : Service() {
             override fun openFile(path: String?, mode: String?): ParcelFileDescriptor? {
                 resetSuicideTask()
                 val f = File(resolvePath(path ?: return null))
-                var numericMode = ParcelFileDescriptor.parseMode(mode ?: return null)
-                if (numericMode and ParcelFileDescriptor.MODE_WRITE_ONLY != 0 &&
-                    numericMode and ParcelFileDescriptor.MODE_TRUNCATE == 0 &&
-                    numericMode and ParcelFileDescriptor.MODE_APPEND == 0
-                ) {
-                    // SAF "w" semantics replace the file: since Android Q a
-                    // plain "w" no longer truncates, so upgrade it to "wt".
-                    numericMode = numericMode or
-                        ParcelFileDescriptor.MODE_CREATE or
-                        ParcelFileDescriptor.MODE_TRUNCATE
-                }
+                // "w" and "wt" both map to WRITE_ONLY|CREATE|TRUNCATE in
+                // ParcelFileDescriptor.parseMode, so writes always truncate.
+                val numericMode = ParcelFileDescriptor.parseMode(mode ?: return null)
 
                 return try {
                     if (numericMode and ParcelFileDescriptor.MODE_WRITE_ONLY != 0) {
@@ -148,10 +140,11 @@ class FileShuttleService : Service() {
                     mimeType != null && !isDirectory && mimeType != "application/octet-stream"
 
                 if (shouldAppendExtension) {
-                    val extensionPart =
-                        "." + MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
-                    if (!fullPath.endsWith(extensionPart)) {
-                        fullPath += extensionPart
+                    // An unknown MIME type has no extension mapping: keep the
+                    // plain name instead of appending a literal ".null".
+                    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+                    if (extension != null && !fullPath.endsWith(".$extension")) {
+                        fullPath += "." + extension
                     }
                 }
 
@@ -171,7 +164,10 @@ class FileShuttleService : Service() {
             override fun deleteFile(path: String?): String? {
                 resetSuicideTask()
                 val f = File(resolvePath(path ?: return null))
-                f.delete()
+                // Report the parent only when the file is really gone, so the
+                // Documents UI does not announce a successful deletion that
+                // the storage refused.
+                if (!f.delete() && f.exists()) return null
                 return f.parentFile?.absolutePath
             }
 

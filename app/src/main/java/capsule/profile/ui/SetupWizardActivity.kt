@@ -87,6 +87,16 @@ class SetupWizardActivity : ComponentActivity() {
 
         val resume = ACTION_RESUME_SETUP == intent?.action
 
+        // A work profile managed by another app is a hard provisioning blocker:
+        // surface it on the wizard itself instead of letting the user walk
+        // into it at the very end. The FAILED page carries the explanation
+        // plus a shortcut into the system settings where the other profile
+        // can be removed.
+        if (Utility.isForeignWorkProfilePresent(this)) {
+            wizardState = WizardStep.FAILED
+            failureReasonRes = R.string.setup_failed_reason_other_owner
+        }
+
         setContent {
             CapsuleTheme {
                 WizardScreen(resume)

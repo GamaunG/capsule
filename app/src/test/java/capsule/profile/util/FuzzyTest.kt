@@ -120,7 +120,6 @@ class FuzzyTest {
         assertEquals(1, score("Anything", "com.example.x", ""))
         assertEquals(1, score("Anything", "com.example.x", "   "))
         assertEquals(1, score("Anything", "com.example.x", "\t"))
-        assertTrue(Fuzzy.matches("Anything", "com.example.x", ""))
     }
 
     @Test
@@ -132,9 +131,9 @@ class FuzzyTest {
     }
 
     @Test
-    fun matchesHelperAgreesWithScore() {
-        assertTrue(Fuzzy.matches("Maps", "com.example.maps", "map"))
-        assertFalse(Fuzzy.matches("Maps", "com.example.maps", "xyz"))
+    fun zeroScoreMeansNoMatch() {
+        assertEquals(0, score("Maps", "com.example.maps", "xyz"))
+        assertTrue(score("Maps", "com.example.maps", "map") > 0)
     }
 
     @Test

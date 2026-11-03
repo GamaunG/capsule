@@ -68,9 +68,28 @@ class CapsuleService : Service() {
     @Volatile
     private var lastBridgeTraffic = 0L
 
+    /** True while a re-arm post is still pending; coalesces binder bursts. */
+    @Volatile
+    private var bridgeRearmPosted = false
+
     /** Renews the bridge session lease; safe from any thread. */
     private fun touchBridgeLease() {
         lastBridgeTraffic = SystemClock.elapsedRealtime()
+    }
+
+    /**
+     * Re-arms the keep-alive after binder traffic resumed. The posted flag
+     * keeps a burst of binder calls from queueing one post each; every
+     * failure (including the platform refusing a foreground promotion from a
+     * cached process) degrades to the old reconnect-on-death behavior.
+     */
+    private fun rearmBridgeKeepAlive() {
+        if (bridgeForeground || bridgeRearmPosted) return
+        bridgeRearmPosted = true
+        bridgeHandler.post {
+            bridgeRearmPosted = false
+            startBridgeForeground()
+        }
     }
 
     private val binder =
@@ -78,6 +97,14 @@ class CapsuleService : Service() {
             override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
                 // Any incoming traffic renews the bridge session lease.
                 touchBridgeLease()
+                // Traffic after the lease expired means the client came back:
+                // the process is cached by now and the cached-app freezer will
+                // kill it on the next synchronous call unless the keep-alive
+                // is re-armed first (observed in the V14 system log: a
+                // DeadObjectException ~10 s after "lease expired").
+                if (isProfileOwner) {
+                    rearmBridgeKeepAlive()
+                }
                 return super.onTransact(code, data, reply, flags)
             }
 
@@ -91,16 +118,12 @@ class CapsuleService : Service() {
                 }
             }
 
-            override fun ping() {
-                // Let the other side know we are alive.
-            }
-
             override fun stopCapsuleService(kill: Boolean) {
-                // Delay slightly so the binder call can return before we die.
                 serviceScope.launch {
                     try {
-                        Thread.sleep(1)
-                    } catch (e: InterruptedException) {
+                        // Delay slightly so the binder call can return before we die.
+                        kotlinx.coroutines.delay(1)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
                         // Stopping anyway.
                     }
 
@@ -137,14 +160,22 @@ class CapsuleService : Service() {
                     for (info in installed) {
                         if (info.packageName == packageName) continue
                         val wrapper = ApplicationInfoWrapper(info).loadLabel(packageManagerRef)
-                        // A per-app isApplicationHidden binder call dominated the
-                        // listing time on the work side. The package list already
-                        // knows the answer: present in this MATCH_UNINSTALLED
-                        // query but not flagged installed means hidden for this
-                        // user, which is exactly what the freeze state is.
+                        // The frozen state must come from the profile owner
+                        // API. A hidden app still reports FLAG_INSTALLED on
+                        // current Android (hiding and installed became two
+                        // separate per-user states), so deriving it from that
+                        // flag made every frozen app look unfrozen in the
+                        // list. The per-app binder call is the only public
+                        // source that reflects the hide state.
                         val hidden =
                             isProfileOwner &&
-                                (info.flags and ApplicationInfo.FLAG_INSTALLED) == 0
+                                try {
+                                    policyManager.isApplicationHidden(adminComponent, info.packageName)
+                                } catch (e: Exception) {
+                                    // Not an owner here (or the admin is gone):
+                                    // this side cannot freeze apps anyway.
+                                    false
+                                }
                         wrapper.setHidden(hidden)
 
                         // A hidden system app counts as "not installed": it
@@ -203,6 +234,7 @@ class CapsuleService : Service() {
                                 policyManager.setApplicationHidden(adminComponent, app.packageName, false)
                                 if (isPackageVisible(app.packageName)) {
                                     CapsuleLog.i("System app ${app.packageName} enabled in the profile")
+                                    armAutoFreeze()
                                     callback.callback(Activity.RESULT_OK)
                                 } else {
                                     // Some vendor builds silently refuse to enable
@@ -278,6 +310,11 @@ class CapsuleService : Service() {
                 check(isProfileOwner) { "Cannot unfreeze app without being profile owner" }
                 CapsuleLog.i("unfreezeApp: ${app.packageName}")
                 policyManager.setApplicationHidden(adminComponent, app.packageName, false)
+                // An unfrozen app must be watched again: the freeze service
+                // stops itself once nothing is left to freeze, so unfreezing
+                // from the UI has to re-arm it or the next screen lock would
+                // silently skip this app.
+                armAutoFreeze()
             }
 
             override fun hasUsageStatsPermission(): Boolean =
@@ -354,9 +391,18 @@ class CapsuleService : Service() {
                 result.putBundle("values", configured)
 
                 val schema = ArrayList<Bundle>()
+                // A frozen (hidden) app reads as uninstalled for the manifest
+                // query, which would throw "No such package" across the
+                // binder (seen in the V14 system log). The editor then simply
+                // sees no schema; the configured values are still returned.
                 val entries =
-                    getSystemService(RestrictionsManager::class.java)
-                        .getManifestRestrictions(packageName)
+                    try {
+                        getSystemService(RestrictionsManager::class.java)
+                            .getManifestRestrictions(packageName)
+                    } catch (e: Exception) {
+                        CapsuleLog.w("Could not read the restrictions schema of $packageName", e)
+                        null
+                    }
                 entries?.forEach { entry ->
                     schema.add(
                         Bundle().apply {
@@ -535,6 +581,7 @@ class CapsuleService : Service() {
             presentButHidden -> {
                 // A frozen app from a previous clone: make it available again.
                 policyManager.setApplicationHidden(adminComponent, app.packageName, false)
+                armAutoFreeze()
                 CapsuleLog.i("Unhid the existing package ${app.packageName}")
                 callback.callback(Activity.RESULT_OK)
                 InstallDecision.HANDLED
@@ -550,14 +597,26 @@ class CapsuleService : Service() {
         }
     }
 
-    /** True when the package resolves for a normal (no uninstalled flag) query. */
-    private fun isPackageVisible(packageName: String): Boolean =
-        try {
+    /** True when the package resolves for a normal (no uninstalled flag)
+     * query and is not frozen. A hidden package also resolves on current
+     * Android, so the owner side must consult the hide state separately;
+     * otherwise cloning a frozen app would report "already installed"
+     * instead of unfreezing it. */
+    private fun isPackageVisible(packageName: String): Boolean {
+        if (isProfileOwner) {
+            try {
+                if (policyManager.isApplicationHidden(adminComponent, packageName)) return false
+            } catch (e: Exception) {
+                // Fall through to the plain resolution check.
+            }
+        }
+        return try {
             getPackageInfo(packageName, 0)
             true
         } catch (e: PackageManager.NameNotFoundException) {
             false
         }
+    }
 
     /** True when the package exists but is hidden from this profile. */
     private fun isPackagePresent(packageName: String): Boolean =
@@ -567,6 +626,16 @@ class CapsuleService : Service() {
         } catch (e: PackageManager.NameNotFoundException) {
             false
         }
+
+    /** Re-arms the auto-freeze watcher after this side unfroze an app. */
+    private fun armAutoFreeze() {
+        try {
+            FreezeService.armIfNeeded(this)
+        } catch (e: Exception) {
+            // Arming again is opportunistic; the next bridge bind retries it.
+            CapsuleLog.w("Could not re-arm the auto-freeze service", e)
+        }
+    }
 
     @Suppress("DEPRECATION")
     private fun getPackageInfo(packageName: String, flags: Int) {

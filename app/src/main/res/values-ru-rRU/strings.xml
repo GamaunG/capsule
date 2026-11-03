@@ -28,7 +28,9 @@
     <string name="clone_success">Приложение \"%s\" успешно клонировано</string>
     <string name="uninstall_success">Приложение \"%s\" успешно удалено</string>
     <string name="freeze_success">Приложение \"%s\" успешно заморожено</string>
+    <string name="freeze_fail">Не удалось заморозить приложение \"%s\". Проверьте, что рабочий профиль доступен, и попробуйте ещё раз.</string>
     <string name="unfreeze_success">Приложение \"%s\" успешно разморожено</string>
+    <string name="unfreeze_fail">Не удалось разморозить приложение \"%s\". Проверьте, что рабочий профиль доступен, и попробуйте ещё раз.</string>
     <string name="clone_fail_system_app">Невозможно клонировать системные приложения в профиль, который Capsule не контролирует.</string>
     <string name="uninstall_fail_system_app">Невозможно удалить системные приложения в профиле, который Capsule не контролирует.</string>
     <string name="unsupported_launcher">Невозможно добавить ярлык в ваш лаунчер. Пожалуйста, свяжитесь с разработчиком.</string>
@@ -38,6 +40,8 @@
     <string name="app_installing">Установка...</string>
     <string name="allow_cross_profile_widgets">Виджеты в осн. профиле</string>
     <string name="search">Поиск</string>
+    <string name="more_options">Ещё</string>
+    <string name="clear_search">Очистить поиск</string>
     <string name="service_auto_freeze_title">Ожидание автозаморозки</string>
     <string name="service_auto_freeze_now">Заморозить</string>
     <string name="show_all">Все приложения</string>
@@ -123,10 +127,6 @@
     <string name="resume_method_failed">Не удалось выполнить способ включения. Попробуйте другой в настройках.</string>
     <string name="resume_method_forward">Пересланный интент</string>
     <string name="resume_method_forward_hint">Через собственный межпрофильный фильтр Capsule; вариант по умолчанию, работает на всех поддерживаемых версиях</string>
-    <string name="resume_method_crossprofile">Межпрофильный запуск</string>
-    <string name="resume_method_crossprofile_hint">Публичный системный API; доступен с Android 9</string>
-    <string name="resume_method_launcher">Запуск невидимой активности</string>
-    <string name="resume_method_launcher_hint">Тот же запуск, что делает лаунчер; роль лаунчера не нужна</string>
     <string name="resume_method_realapp">Запуск приложения из профиля</string>
     <string name="resume_method_realapp_hint">Как нажатие на приложение в лаунчере; при успехе оно откроется</string>
     <string name="resume_method_appinfo">Экран «О приложении»</string>

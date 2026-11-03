@@ -54,7 +54,9 @@ fun CapsuleTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
+            // The context is an Activity for every current use of the theme;
+            // the safe cast keeps a future dialog-window use from crashing.
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !isDark

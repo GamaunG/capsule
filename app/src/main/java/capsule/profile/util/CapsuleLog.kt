@@ -10,19 +10,11 @@ import capsule.profile.BuildConfig
 object CapsuleLog {
     private const val TAG = "Capsule"
 
-    fun d(message: String, tr: Throwable? = null) {
-        if (BuildConfig.DEBUG) android.util.Log.d(TAG, message, tr)
-    }
-
     fun i(message: String, tr: Throwable? = null) {
         if (BuildConfig.DEBUG) android.util.Log.i(TAG, message, tr)
     }
 
     fun w(message: String, tr: Throwable? = null) {
         if (BuildConfig.DEBUG) android.util.Log.w(TAG, message, tr)
-    }
-
-    fun e(message: String, tr: Throwable? = null) {
-        if (BuildConfig.DEBUG) android.util.Log.e(TAG, message, tr)
     }
 }

@@ -100,7 +100,7 @@ class AppListState(
      * work-profile process would be killed by such a call, so remote calls
      * are always preceded by the oneway probe.
      */
-    private suspend fun ensureBridge(): Boolean = !isRemote || WorkServiceHolder.ensureAlive()
+    suspend fun ensureBridge(): Boolean = !isRemote || WorkServiceHolder.ensureAlive()
 
     private suspend fun awaitGetApps(): List<ApplicationInfoWrapper>? {
         // A service dying mid-request would hang the coroutine forever and
@@ -198,7 +198,16 @@ class AppListState(
                         }
                         cache?.save(list, icons)
                     }
-                } catch (e: RemoteException) {
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    // Replaced by a newer refresh: this is the old job being
+                    // cancelled, not a failure, and the replacing job owns the
+                    // spinner and the data. Rethrow so the cancellation
+                    // completes instead of being misreported as an error.
+                    throw e
+                } catch (e: Exception) {
+                    // Any unexpected failure must still release the spinner;
+                    // the next resume or package event refreshes again.
+                    CapsuleLog.w("The app list refresh failed", e)
                     withContext(Dispatchers.Main) {
                         refreshing = false
                     }
@@ -303,36 +312,79 @@ class AppListState(
 
     fun freezeApp(app: ApplicationInfoWrapper) {
         scope.launch {
-            try {
+            val outcome =
                 withContext(Dispatchers.IO) {
-                    if (!ensureBridge()) return@withContext
-                    service.freezeApp(app)
+                    try {
+                        if (!ensureBridge()) {
+                            Outcome.BRIDGE_DOWN
+                        } else {
+                            service.freezeApp(app)
+                            Outcome.OK
+                        }
+                    } catch (e: Exception) {
+                        CapsuleLog.w("Failed to freeze ${app.packageName}", e)
+                        Outcome.FAILED
+                    }
                 }
-                withContext(Dispatchers.Main) {
-                    onMessage(R.string.freeze_success, app.labelOrDefault)
-                    refresh()
+            withContext(Dispatchers.Main) {
+                when (outcome) {
+                    Outcome.OK -> {
+                        onMessage(R.string.freeze_success, app.labelOrDefault)
+                        refresh()
+                    }
+
+                    Outcome.BRIDGE_DOWN -> {
+                        onMessage(R.string.work_bridge_unavailable, null)
+                    }
+
+                    Outcome.FAILED -> {
+                        onMessage(R.string.freeze_fail, app.labelOrDefault)
+                    }
                 }
-            } catch (e: RemoteException) {
-                CapsuleLog.w("Failed to freeze ${app.packageName}", e)
             }
         }
     }
 
     fun unfreezeApp(app: ApplicationInfoWrapper) {
         scope.launch {
-            try {
+            val outcome =
                 withContext(Dispatchers.IO) {
-                    if (!ensureBridge()) return@withContext
-                    service.unfreezeApp(app)
+                    try {
+                        if (!ensureBridge()) {
+                            Outcome.BRIDGE_DOWN
+                        } else {
+                            service.unfreezeApp(app)
+                            Outcome.OK
+                        }
+                    } catch (e: Exception) {
+                        CapsuleLog.w("Failed to unfreeze ${app.packageName}", e)
+                        Outcome.FAILED
+                    }
                 }
-                withContext(Dispatchers.Main) {
-                    onMessage(R.string.unfreeze_success, app.labelOrDefault)
-                    refresh()
+            withContext(Dispatchers.Main) {
+                when (outcome) {
+                    Outcome.OK -> {
+                        onMessage(R.string.unfreeze_success, app.labelOrDefault)
+                        refresh()
+                    }
+
+                    Outcome.BRIDGE_DOWN -> {
+                        onMessage(R.string.work_bridge_unavailable, null)
+                    }
+
+                    Outcome.FAILED -> {
+                        onMessage(R.string.unfreeze_fail, app.labelOrDefault)
+                    }
                 }
-            } catch (e: RemoteException) {
-                CapsuleLog.w("Failed to unfreeze ${app.packageName}", e)
             }
         }
+    }
+
+    /** Result of a one-shot app action. */
+    private enum class Outcome {
+        OK,
+        BRIDGE_DOWN,
+        FAILED,
     }
 
     /** Whether the app declares any app widget providers in its own profile. */
@@ -486,18 +538,33 @@ class AppListState(
     fun setCrossProfileInteraction(app: ApplicationInfoWrapper, enabled: Boolean) {
         scope.launch {
             try {
-                if (enabled) {
-                    crossProfilePackages.add(app.packageName)
-                } else {
-                    crossProfilePackages.remove(app.packageName)
-                }
-                withContext(Dispatchers.IO) {
-                    if (ensureBridge()) {
-                        service.setCrossProfilePackages(ArrayList(crossProfilePackages))
+                // Mirror the widget toggle: only a confirmed change updates
+                // the visible state, so a failed call cannot leave the row
+                // showing the opposite of what the profile applies.
+                val changed =
+                    withContext(Dispatchers.IO) {
+                        if (!ensureBridge()) {
+                            false
+                        } else {
+                            val next =
+                                if (enabled) {
+                                    crossProfilePackages + app.packageName
+                                } else {
+                                    crossProfilePackages - app.packageName
+                                }
+                            service.setCrossProfilePackages(ArrayList(next))
+                            true
+                        }
+                    }
+                if (changed) {
+                    if (enabled) {
+                        crossProfilePackages.add(app.packageName)
+                    } else {
+                        crossProfilePackages.remove(app.packageName)
                     }
                 }
-            } catch (e: RemoteException) {
-                // Leave the state unchanged.
+            } catch (e: Exception) {
+                CapsuleLog.w("Could not update the cross-profile interaction of ${app.packageName}", e)
             }
         }
     }

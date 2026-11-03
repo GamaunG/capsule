@@ -27,13 +27,22 @@ import kotlin.concurrent.withLock
  * [FileShuttleService] on the other side.
  */
 class CrossProfileDocumentsProvider : DocumentsProvider() {
+    // Written under bindLock from the bind callback and from the main-thread
+    // release task; read on binder threads. Volatile so those reads are never
+    // served a stale null.
+    @Volatile
     private var service: IFileShuttleService? = null
     private val handler = Handler(Looper.getMainLooper())
-    private val releaseServiceTask = Runnable { service = null }
+    private val releaseServiceTask =
+        Runnable {
+            bindLock.withLock {
+                service = null
+            }
+        }
     private val bindLock = ReentrantLock()
     private val serviceBound = bindLock.newCondition()
 
-    private fun doBindService() {
+    private fun doBindService(): Boolean {
         val intent = Intent(DummyActivity.START_FILE_SHUTTLE)
         val extra = Bundle()
         extra.putBinder(
@@ -55,32 +64,46 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
         } catch (e: IllegalStateException) {
             // Distinct actions per direction avoid an action chooser; retry the other one.
             intent.action = DummyActivity.START_FILE_SHUTTLE_2
-            Utility.transferIntentToProfile(context, intent)
+            try {
+                Utility.transferIntentToProfile(context, intent)
+            } catch (e2: IllegalStateException) {
+                // The other profile is not reachable at all.
+                return false
+            }
         }
         context.startActivity(intent)
 
-        // Convert the async bind into a synchronous wait.
+        // Convert the async bind into a bounded synchronous wait: hanging a
+        // binder thread forever on an answer that never comes (profile
+        // paused, launch silently blocked) would pile up and freeze the
+        // Documents UI.
         bindLock.withLock {
             try {
+                val deadline = System.nanoTime() + BIND_TIMEOUT_NS
                 while (service == null) {
-                    serviceBound.await()
+                    val remaining = deadline - System.nanoTime()
+                    if (remaining <= 0 || !serviceBound.await(remaining, java.util.concurrent.TimeUnit.NANOSECONDS)) {
+                        return false
+                    }
                 }
             } catch (e: InterruptedException) {
-                // Leave service as is; the query will fail like a remote error.
+                // Leave service as is; the query fails like a remote error.
+                return false
             }
         }
+        return true
     }
 
-    private fun ensureServiceBound() {
+    private fun ensureServiceBound(): Boolean {
         if (service == null) {
-            doBindService()
-        } else {
-            try {
-                service!!.ping()
-                resetReleaseService()
-            } catch (e: RemoteException) {
-                doBindService()
-            }
+            return doBindService()
+        }
+        try {
+            service!!.ping()
+            resetReleaseService()
+            return true
+        } catch (e: RemoteException) {
+            return doBindService()
         }
     }
 
@@ -119,7 +142,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
     }
 
     override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor? {
-        ensureServiceBound()
+        if (!ensureServiceBound()) return null
         val fileInfo =
             try {
                 service!!.loadFileMeta(documentId)
@@ -136,7 +159,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
         projection: Array<out String>?,
         sortOrder: String?,
     ): Cursor? {
-        ensureServiceBound()
+        if (!ensureServiceBound()) return null
         val files =
             try {
                 service!!.loadFiles(parentDocumentId)
@@ -157,7 +180,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
         mode: String,
         signal: CancellationSignal?,
     ): ParcelFileDescriptor? {
-        ensureServiceBound()
+        if (!ensureServiceBound()) throw java.io.FileNotFoundException("The other profile is not reachable")
         return try {
             service!!.openFile(documentId, mode)
         } catch (e: RemoteException) {
@@ -170,7 +193,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
         sizeHint: Point,
         signal: CancellationSignal?,
     ): AssetFileDescriptor? {
-        ensureServiceBound()
+        if (!ensureServiceBound()) return null
         return try {
             AssetFileDescriptor(
                 service!!.openThumbnail(documentId, sizeHint),
@@ -187,7 +210,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
         mimeType: String,
         displayName: String,
     ): String? {
-        ensureServiceBound()
+        if (!ensureServiceBound()) return null
         return try {
             val ret = service!!.createFile(parentDocumentId, mimeType, displayName)
             context!!.contentResolver.notifyChange(
@@ -201,7 +224,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
     }
 
     override fun deleteDocument(documentId: String) {
-        ensureServiceBound()
+        if (!ensureServiceBound()) return
         try {
             val parent = service!!.deleteFile(documentId)
             context!!.contentResolver.notifyChange(
@@ -214,7 +237,7 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
     }
 
     override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
-        ensureServiceBound()
+        if (!ensureServiceBound()) return false
         return try {
             service!!.isChildOf(parentDocumentId, documentId)
         } catch (e: RemoteException) {
@@ -243,6 +266,9 @@ class CrossProfileDocumentsProvider : DocumentsProvider() {
         /** Dummy root path remapped to shared storage on the other side. */
         const val DUMMY_ROOT = "/capsule_storage_root/"
         private const val AUTHORITY = "capsule.profile.documents"
+
+        /** Upper bound for the cross-profile shuttle bind, in nanoseconds. */
+        private const val BIND_TIMEOUT_NS = 10_000_000_000L
         private val DEFAULT_ROOT_PROJECTION =
             arrayOf(
                 DocumentsContract.Root.COLUMN_ROOT_ID,

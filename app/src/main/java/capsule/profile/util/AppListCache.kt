@@ -51,13 +51,7 @@ class AppListCache(
                     }
                 if (list == null) return null
                 val icons = mutableMapOf<String, Bitmap>()
-                val iconBundle =
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        bundle?.getBundle(KEY_ICONS)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        bundle?.getBundle(KEY_ICONS)
-                    }
+                val iconBundle = bundle?.getBundle(KEY_ICONS)
                 iconBundle?.keySet()?.forEach { pkg ->
                     iconBundle.getByteArray(pkg)?.let { png ->
                         BitmapFactory.decodeByteArray(png, 0, png.size)?.let { bmp ->

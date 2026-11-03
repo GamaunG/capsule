@@ -51,7 +51,7 @@ class ApplicationInfoWrapper private constructor() : Parcelable {
         dest.writeByte(if (isHiddenState) 1.toByte() else 0.toByte())
     }
 
-    override fun describeContents(): Int = packageName.hashCode()
+    override fun describeContents(): Int = 0
 
     companion object CREATOR : Parcelable.Creator<ApplicationInfoWrapper> {
         override fun createFromParcel(source: Parcel): ApplicationInfoWrapper {

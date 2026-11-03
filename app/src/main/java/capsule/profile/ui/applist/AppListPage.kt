@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -115,13 +113,16 @@ fun AppListPage(
 
             else -> {
                 val searching = state.searchQuery.isNotBlank()
+                // The getter re-runs the fuzzy scoring on every read; capture
+                // it once so the sections and the rows below agree.
+                val displayed = state.displayedApps
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
                     if (searching) {
                         // Search results keep the score order, no sections.
-                        items(state.displayedApps, key = { it.packageName }) { app ->
+                        items(displayed, key = { it.packageName }) { app ->
                             AppListItem(
                                 app = app,
                                 state = state,
@@ -133,8 +134,8 @@ fun AppListPage(
                     } else {
                         // The service sorts user apps before preinstalled
                         // ones; the sections below keep that order.
-                        val userApps = state.displayedApps.filter { !it.isSystem() }
-                        val systemApps = state.displayedApps.filter { it.isSystem() }
+                        val userApps = displayed.filter { !it.isSystem() }
+                        val systemApps = displayed.filter { it.isSystem() }
                         if (userApps.isNotEmpty()) {
                             item(key = "header_user") {
                                 ListSectionHeader(stringResource(R.string.list_section_user_apps))
@@ -214,7 +215,7 @@ fun AppListPage(
             },
             onShortcut = {
                 sheetApp = null
-                addUnfreezeShortcut(context, state, app, emptyList())
+                addUnfreezeShortcut(context, state, app)
             },
         )
     }
@@ -298,7 +299,6 @@ private fun AppListItem(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 2.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color.Transparent)
                 .clickable(onClick = onClick)
                 .padding(10.dp)
                 // Stale snapshots from the disk cache stay visible but dimmed
@@ -393,9 +393,11 @@ private fun AppActionsSheet(
     LaunchedEffect(app.packageName) { hasWidgets = state.hasWidgets(app) }
     // Restrictions are only editable from the work profile side, where the
     // app is under Capsule's control; querying them on the main side throws.
+    // A frozen app cannot resolve its schema either (it reads as
+    // uninstalled), so the query is skipped for those rows.
     var hasRestrictions by remember { mutableStateOf(false) }
     LaunchedEffect(app.packageName) {
-        hasRestrictions = state.isRemote && state.hasEditableRestrictions(app)
+        hasRestrictions = state.isRemote && !app.isHidden() && state.hasEditableRestrictions(app)
     }
     val inOtherProfile = app.packageName in otherPackages()
 
@@ -571,7 +573,7 @@ private fun SheetAction(
                         base.clickable(enabled = enabled) { onClick() }
                     }
                 }.let { if (enabled) it else it.alpha(0.45f) }
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -616,25 +618,18 @@ private fun launchApp(context: Context, app: ApplicationInfoWrapper) {
     context.startActivity(intent)
 }
 
-/** Creates an unfreeze shortcut, optionally unfreezing linked apps first. */
+/** Creates an unfreeze shortcut for one app. */
 fun addUnfreezeShortcut(
     context: Context,
     state: AppListState,
     app: ApplicationInfoWrapper,
-    linkedApps: List<ApplicationInfoWrapper>,
 ) {
-    CapsuleLog.i("Creating unfreeze shortcut for ${app.packageName} with ${linkedApps.size} linked apps")
+    CapsuleLog.i("Creating unfreeze shortcut for ${app.packageName}")
     val iconBitmap = state.iconCache[app.packageName]
-    var id = "capsule-" + app.packageName
+    val id = "capsule-" + app.packageName
     val launchIntent = Intent(DummyActivity.PUBLIC_UNFREEZE_AND_LAUNCH)
     launchIntent.component = ComponentName(context, DummyActivity::class.java)
     launchIntent.putExtra("packageName", app.packageName)
-    if (linkedApps.isNotEmpty()) {
-        val appListStr = linkedApps.joinToString(",") { it.packageName }
-        id += appListStr.hashCode()
-        // PersistableBundle has no String array lists; pass a joined string.
-        launchIntent.putExtra("linkedPackages", appListStr)
-    }
     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     val icon =

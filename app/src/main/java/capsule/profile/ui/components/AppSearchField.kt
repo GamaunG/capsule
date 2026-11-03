@@ -20,8 +20,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import capsule.profile.R
 import capsule.profile.ui.icons.close
 import capsule.profile.ui.icons.search
 
@@ -54,11 +56,11 @@ fun AppSearchField(
                     if (query.isNotEmpty()) {
                         IconButton(
                             onClick = { onQueryChange("") },
-                            modifier = Modifier.size(40.dp),
+                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(
                                 imageVector = close,
-                                contentDescription = null,
+                                contentDescription = stringResource(R.string.clear_search),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }

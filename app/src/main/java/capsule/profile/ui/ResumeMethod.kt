@@ -3,11 +3,8 @@ package capsule.profile.ui
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.CrossProfileApps
 import android.content.pm.LauncherApps
-import android.os.Build
 import android.os.UserHandle
-import android.os.UserManager
 import capsule.profile.R
 import capsule.profile.util.CapsuleLog
 import capsule.profile.util.Utility
@@ -30,13 +27,11 @@ enum class ResumeMethod(
      */
     FORWARD("forward"),
 
-    /** Public CrossProfileApps start of our own invisible proxy activity. */
-    CROSSPROFILE("crossprofile"),
-
-    /** LauncherApps start of the invisible launcher-category proxy. */
-    LAUNCHER("launcher"),
-
-    /** LauncherApps start of a real work app, like a launcher tap. */
+    /**
+     * LauncherApps start of a real work app, like a launcher tap. Kept as a
+     * diagnostic control sample: it resolves through the same launcher path
+     * a real launcher uses.
+     */
     REALAPP("realapp"),
 
     /** System App Info screen; works everywhere but visibly opens Settings. */
@@ -48,8 +43,6 @@ enum class ResumeMethod(
         get() =
             when (this) {
                 FORWARD -> R.string.resume_method_forward
-                CROSSPROFILE -> R.string.resume_method_crossprofile
-                LAUNCHER -> R.string.resume_method_launcher
                 REALAPP -> R.string.resume_method_realapp
                 APPINFO -> R.string.resume_method_appinfo
             }
@@ -59,15 +52,9 @@ enum class ResumeMethod(
         get() =
             when (this) {
                 FORWARD -> R.string.resume_method_forward_hint
-                CROSSPROFILE -> R.string.resume_method_crossprofile_hint
-                LAUNCHER -> R.string.resume_method_launcher_hint
                 REALAPP -> R.string.resume_method_realapp_hint
                 APPINFO -> R.string.resume_method_appinfo_hint
             }
-
-    /** Whether this method can run on this device at all. */
-    fun isSupported(): Boolean =
-        this != CROSSPROFILE || Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
 
     /**
      * Runs this method against the paused profile. Returns false when the
@@ -83,8 +70,6 @@ enum class ResumeMethod(
         return try {
             when (this) {
                 FORWARD -> runForward(activity)
-                CROSSPROFILE -> runCrossProfile(activity, user)
-                LAUNCHER -> runLauncher(activity, user)
                 REALAPP -> runRealApp(activity, user)
                 APPINFO -> runAppDetails(activity, user)
             }
@@ -104,30 +89,6 @@ enum class ResumeMethod(
         CapsuleLog.i("RESUME TEST method=$id starting the forwarded intent $intent")
         Utility.transferIntentToProfileUnsigned(activity, intent)
         activity.startActivity(intent)
-        return true
-    }
-
-    /** CrossProfileApps.startMainActivity of the invisible proxy activity. */
-    private fun runCrossProfile(activity: Activity, user: UserHandle): Boolean {
-        if (!isSupported()) {
-            CapsuleLog.w("RESUME TEST method=$id aborted: CrossProfileApps needs Android 9")
-            return false
-        }
-        val crossProfile = activity.getSystemService(CrossProfileApps::class.java)
-        val targets = crossProfile.targetUserProfiles
-        CapsuleLog.i("RESUME TEST method=$id target profiles: $targets")
-        val component = ComponentName(activity, UnfreezeLauncherActivity::class.java)
-        CapsuleLog.i("RESUME TEST method=$id startMainActivity($component, $user)")
-        crossProfile.startMainActivity(component, user)
-        return true
-    }
-
-    /** LauncherApps.startMainActivity of the invisible proxy activity. */
-    private fun runLauncher(activity: Activity, user: UserHandle): Boolean {
-        val launcherApps = activity.getSystemService(LauncherApps::class.java)
-        val component = ComponentName(activity, UnfreezeLauncherActivity::class.java)
-        CapsuleLog.i("RESUME TEST method=$id LauncherApps.startMainActivity($component, $user)")
-        launcherApps.startMainActivity(component, user, null, null)
         return true
     }
 

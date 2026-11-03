@@ -67,12 +67,16 @@ class DummyActivity : ComponentActivity() {
     private val legacyStoragePermissionLauncher: ActivityResultLauncher<String> =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
-        ) { granted -> if (granted) doStartFileShuttle() else finish() }
+        ) { granted ->
+            screenFlowActive = false
+            if (granted) doStartFileShuttle() else finish()
+        }
 
     private val notificationPermissionLauncher: ActivityResultLauncher<String> =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) {
+            screenFlowActive = false
             // Requested on demand when the Auto Freeze service is enabled;
             // the grant state does not affect anything else in this activity.
             finish()
@@ -81,6 +85,11 @@ class DummyActivity : ComponentActivity() {
     // Set while the unknown-sources settings page is up, so returning from it
     // without the permission does not loop back into the same request.
     private var awaitingInstallPermission = false
+
+    // True while any result launcher of this instance is mid-flight (settings
+    // screens, permission prompts, the shuttle consent). A re-delivered
+    // bridge action must not finish the activity out from under them.
+    private var screenFlowActive = false
 
     private val installPermissionLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(
@@ -105,6 +114,7 @@ class DummyActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) {
+            screenFlowActive = false
             setResult(Activity.RESULT_OK)
             finish()
         }
@@ -158,7 +168,7 @@ class DummyActivity : ComponentActivity() {
 
         when (intent.action) {
             START_SERVICE -> {
-                actionStartService()
+                actionStartService(intent)
             }
             TRY_START_SERVICE -> {
                 // Used to probe whether the work profile is enabled.
@@ -196,7 +206,7 @@ class DummyActivity : ComponentActivity() {
                 actionRequestNotificationPermission()
             }
             SYNCHRONIZE_PREFERENCE -> {
-                actionSynchronizePreference()
+                actionSynchronizePreference(intent)
             }
             else -> {
                 finish()
@@ -232,11 +242,49 @@ class DummyActivity : ComponentActivity() {
                     appInstallFinished(Activity.RESULT_OK)
                 }
                 else -> {
-                    val message =
-                        intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown"
+                    val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown"
                     CapsuleLog.w("PackageInstaller: session failed: $message")
                     appInstallFinished(Activity.RESULT_CANCELED)
                 }
+            }
+            return
+        }
+
+        // This activity is singleTask, so a launch while an instance is alive
+        // (e.g. a bridge rebind during a pending install confirmation) is
+        // delivered here instead of creating a new instance — and its launcher
+        // already received RESULT_CANCELED. The two stateless bridge actions
+        // can still be carried out: their effect (binding the service, syncing
+        // a preference) does not depend on the cancelled result. Anything else
+        // would break the flow owned by the original intent and is dropped.
+        val busy =
+            awaitingInstallPermission ||
+                screenFlowActive ||
+                !installProgress.isNaN() ||
+                this.intent.hasExtra("callback")
+        if (busy) {
+            CapsuleLog.w("Dropping re-delivered action ${intent.action}: another operation is still in flight")
+            return
+        }
+        when (intent.action) {
+            START_SERVICE -> {
+                if (AuthenticationUtility.checkIntent(intent)) {
+                    actionStartService(intent)
+                } else {
+                    CapsuleLog.w("Rejecting unauthenticated re-delivered action ${intent.action}")
+                }
+            }
+
+            SYNCHRONIZE_PREFERENCE -> {
+                if (AuthenticationUtility.checkIntent(intent)) {
+                    actionSynchronizePreference(intent)
+                } else {
+                    CapsuleLog.w("Rejecting unauthenticated re-delivered action ${intent.action}")
+                }
+            }
+
+            else -> {
+                CapsuleLog.w("Dropping re-delivered action ${intent.action}")
             }
         }
     }
@@ -271,12 +319,12 @@ class DummyActivity : ComponentActivity() {
         }
     }
 
-    private fun actionStartService() {
+    private fun actionStartService(deliveredIntent: Intent) {
         // A snapshot of the synced preferences travels with every bind so the
         // two sides converge even when a single change event was missed.
         if (isProfileOwner) {
             @Suppress("DEPRECATION")
-            val bundle = intent.getBundleExtra("settings_sync")
+            val bundle = deliveredIntent.getBundleExtra("settings_sync")
             if (bundle != null && SettingsManager.applySyncBundle(bundle)) {
                 // Only meaningful when the snapshot actually diverged.
                 Utility.enforceWorkProfilePolicies(this)
@@ -317,7 +365,6 @@ class DummyActivity : ComponentActivity() {
                     // Nothing to do.
                 }
             },
-            false,
         )
     }
 
@@ -590,6 +637,10 @@ class DummyActivity : ComponentActivity() {
                     registerAppToFreeze(packages[i])
                 }
             }
+            // Something became unfrozen: the watcher may have stopped after
+            // a pass froze everything, and only re-arming it here keeps the
+            // next screen lock from silently skipping these apps.
+            FreezeService.armIfNeeded(this)
         }
 
         val packageName =
@@ -604,6 +655,10 @@ class DummyActivity : ComponentActivity() {
             packageName,
             false,
         )
+        // Same re-arm as above, for the app that was just unfrozen by this
+        // launch (it only lands on the session list when the shortcut's
+        // freeze-after-launch option is enabled for it).
+        FreezeService.armIfNeeded(this)
 
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         if (launchIntent != null) {
@@ -679,6 +734,7 @@ class DummyActivity : ComponentActivity() {
             ) {
                 doStartFileShuttle()
             } else {
+                screenFlowActive = true
                 legacyStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         } else {
@@ -729,8 +785,10 @@ class DummyActivity : ComponentActivity() {
             }
         val settings = Intent(action, Uri.fromParts("package", packageName, null))
         try {
+            screenFlowActive = true
             profileSettingsLauncher.launch(settings)
         } catch (e: android.content.ActivityNotFoundException) {
+            screenFlowActive = false
             // The screen does not exist on this ROM: nothing to grant.
             setResult(Activity.RESULT_CANCELED)
             finish()
@@ -771,29 +829,30 @@ class DummyActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
+            screenFlowActive = true
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             finish()
         }
     }
 
-    private fun actionSynchronizePreference() {
+    private fun actionSynchronizePreference(deliveredIntent: Intent) {
         val name =
-            intent.getStringExtra("name") ?: run {
+            deliveredIntent.getStringExtra("name") ?: run {
                 finish()
                 return
             }
         when {
-            intent.hasExtra("boolean") -> {
-                LocalStorageManager.setBoolean(name, intent.getBooleanExtra("boolean", false))
+            deliveredIntent.hasExtra("boolean") -> {
+                LocalStorageManager.setBoolean(name, deliveredIntent.getBooleanExtra("boolean", false))
             }
 
-            intent.hasExtra("int") -> {
-                LocalStorageManager.setInt(name, intent.getIntExtra("int", Int.MIN_VALUE))
+            deliveredIntent.hasExtra("int") -> {
+                LocalStorageManager.setInt(name, deliveredIntent.getIntExtra("int", Int.MIN_VALUE))
             }
 
-            intent.hasExtra("list") -> {
-                LocalStorageManager.setStringList(name, intent.getStringArrayExtra("list")?.toList() ?: emptyList())
+            deliveredIntent.hasExtra("list") -> {
+                LocalStorageManager.setStringList(name, deliveredIntent.getStringArrayExtra("list")?.toList() ?: emptyList())
             }
         }
         SettingsManager.applyAll()

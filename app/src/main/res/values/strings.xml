@@ -82,6 +82,8 @@
 
     <!-- Action Bar Options Menu -->
     <string name="search">Search</string>
+    <string name="more_options">More options</string>
+    <string name="clear_search">Clear search</string>
     <string name="freeze_all">Batch Freeze</string>
     <string name="create_freeze_all_shortcut">Create Batch Freeze Shortcut</string>
     <string name="freeze_all_shortcut">Freeze</string>
@@ -125,6 +127,7 @@
     <string name="managed_restrictions_saved">Managed app restrictions saved.</string>
     <string name="managed_restrictions_save_failed">Could not save these app restrictions.</string>
     <string name="managed_restrictions_load_failed">Could not load managed restrictions for this app.</string>
+    <string name="managed_restrictions_invalid_number">Enter a whole number.</string>
     <string name="managed_restrictions_enabled">On</string>
     <string name="managed_restrictions_disabled">Off</string>
 
@@ -141,10 +144,6 @@
     <string name="resume_method_failed">The unfreeze method could not run. Try another one in Settings.</string>
     <string name="resume_method_forward">Forwarded intent</string>
     <string name="resume_method_forward_hint">Through Capsule\'s own cross-profile filter; the default that works on all supported versions</string>
-    <string name="resume_method_crossprofile">Cross-profile app start</string>
-    <string name="resume_method_crossprofile_hint">Public system API; available since Android 9</string>
-    <string name="resume_method_launcher">Launcher start of an invisible activity</string>
-    <string name="resume_method_launcher_hint">The same start a launcher uses; no launcher role needed</string>
     <string name="resume_method_realapp">Launcher start of a work app</string>
     <string name="resume_method_realapp_hint">Like tapping a work app; that app opens on success</string>
     <string name="resume_method_appinfo">App info screen</string>
@@ -160,7 +159,9 @@
     <string name="clone_fail_already_exists">Application \"%s\" is already installed in the other profile.</string>
     <string name="uninstall_success">Application \"%s\" uninstalled successfully</string>
     <string name="freeze_success">Application \"%s\" frozen successfully</string>
+    <string name="freeze_fail">Application \"%s\" could not be frozen. Check that the work profile is reachable and try again.</string>
     <string name="unfreeze_success">Application \"%s\" unfrozen successfully</string>
+    <string name="unfreeze_fail">Application \"%s\" could not be unfrozen. Check that the work profile is reachable and try again.</string>
     <string name="clone_fail_system_app">Cannot clone system apps to a profile that Capsule has no control of.</string>
     <string name="clone_fail_system_app_enable">This system app could not be enabled in the other profile.</string>
     <string name="uninstall_fail_system_app">Cannot uninstall system apps in a profile that Capsule has no control of.</string>
@@ -188,8 +189,8 @@
     <string name="cert_none">No certificates installed</string>
     <string name="cert_unnamed">Certificate</string>
     <string name="cert_valid_until">Valid until %s</string>
-    <string name="cert_install_success">Certificate installed in the work profile.</string>
-    <string name="cert_install_failed">The certificate could not be installed. Check that the file contains a valid certificate.</string>
+    <string name="cert_install_summary_ok">Installed %d certificate(s) in the work profile.</string>
+    <string name="cert_install_summary_partial">Installed %1$d of %2$d certificates. Check the rejected files; they may not contain a valid certificate.</string>
     <string name="cert_remove_success">Certificate removed.</string>
     <string name="cert_remove_failed">The certificate could not be removed.</string>
     <string name="cert_remove_title">Remove certificate</string>

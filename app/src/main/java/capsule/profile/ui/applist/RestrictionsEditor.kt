@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,29 +56,29 @@ fun RestrictionsEditor(
     var failed by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<Bundle?>(null) }
 
-    remember {
-        scope.launch {
-            try {
-                val response =
-                    withContext(Dispatchers.IO) {
-                        state.service.getManagedApplicationRestrictions(app.packageName)
+    LaunchedEffect(app.packageName) {
+        try {
+            val response =
+                withContext(Dispatchers.IO) {
+                    // The probe first: a synchronous call into a frozen bridge
+                    // process gets it killed by the system.
+                    if (!state.ensureBridge()) {
+                        throw IllegalStateException("The work bridge is down")
                     }
-                withContext(Dispatchers.Main) {
-                    values = response.getBundle("values") ?: Bundle()
-                    val raw: ArrayList<Bundle>? =
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            response.getParcelableArrayList("schema", Bundle::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            response.getParcelableArrayList("schema")
-                        }
-                    schema = raw ?: emptyList()
+                    state.service.getManagedApplicationRestrictions(app.packageName)
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) { failed = true }
-            }
+            values = response.getBundle("values") ?: Bundle()
+            val raw: ArrayList<Bundle>? =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    response.getParcelableArrayList("schema", Bundle::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    response.getParcelableArrayList("schema")
+                }
+            schema = raw ?: emptyList()
+        } catch (e: Exception) {
+            failed = true
         }
-        true
     }
 
     when {
@@ -135,7 +136,10 @@ fun RestrictionsEditor(
                                 R.string.managed_restrictions_save_failed
                             }
                         withContext(Dispatchers.Main) {
-                            values = updated
+                            // Only a confirmed save becomes the visible state;
+                            // after a failure the editor keeps the values the
+                            // profile actually holds.
+                            if (saved) values = updated
                             editingEntry = null
                             state.showMessage(message, null)
                         }
@@ -341,23 +345,23 @@ private fun ChoiceRestrictionDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                labels.indices.forEach { i ->
+                labels.zip(choices).forEach { (label, choice) ->
                     Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable {
-                                    onSave(Bundle(current).apply { putStringArray(key, arrayOf(choices[i])) })
+                                    onSave(Bundle(current).apply { putStringArray(key, arrayOf(choice)) })
                                 }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = labels[i],
+                            text = label,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )
-                        if (choices[i] == selected) {
+                        if (choice == selected) {
                             Icon(
                                 imageVector = done,
                                 contentDescription = null,
@@ -405,27 +409,30 @@ private fun MultiSelectRestrictionDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                labels.indices.forEach { i ->
+                labels.zip(choices).forEach { (label, choice) ->
                     Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable {
-                                    if (choices[i] in selected.value) {
-                                        selected.value.remove(choices[i])
-                                    } else {
-                                        selected.value.add(choices[i])
-                                    }
+                                    // Reassign instead of mutating: in-place
+                                    // changes of the held set are invisible to
+                                    // the state system, so the checkmarks would
+                                    // never update.
+                                    selected.value =
+                                        selected.value.toMutableSet().apply {
+                                            if (!add(choice)) remove(choice)
+                                        }
                                 }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = labels[i],
+                            text = label,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )
-                        if (choices[i] in selected.value) {
+                        if (choice in selected.value) {
                             Icon(
                                 imageVector = done,
                                 contentDescription = null,
@@ -458,6 +465,7 @@ private fun TextRestrictionDialog(
             current.getString(key) ?: entry.getString("defaultString") ?: ""
         }
     var text by remember { mutableStateOf(initial) }
+    var intError by remember { mutableStateOf(false) }
 
     AppDialog(
         onDismiss = onDismiss,
@@ -471,7 +479,9 @@ private fun TextRestrictionDialog(
                     if (isInteger) {
                         val parsed = text.toIntOrNull()
                         if (parsed == null) {
-                            onDismiss()
+                            // Keep the dialog open with the mistake marked,
+                            // instead of silently throwing the input away.
+                            intError = true
                             return@DialogButton
                         }
                         onSave(Bundle(current).apply { putInt(key, parsed) })
@@ -483,8 +493,18 @@ private fun TextRestrictionDialog(
         content = {
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = {
+                    text = it
+                    if (intError) intError = false
+                },
                 singleLine = true,
+                isError = intError,
+                supportingText =
+                    if (intError) {
+                        { Text(stringResource(R.string.managed_restrictions_invalid_number)) }
+                    } else {
+                        null
+                    },
                 keyboardOptions =
                     androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType =

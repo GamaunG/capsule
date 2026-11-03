@@ -24,6 +24,7 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.NFC" />
     <!-- Best-effort exact timing for the auto-freeze pass; the app falls back
          to inexact doze-aware alarms when the user has not granted it. -->
@@ -75,23 +76,6 @@
             <intent-filter>
                 <action android:name="capsule.profile.action.RESUME_PROFILE" />
                 <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-
-        <!-- Second invisible target, with a launcher category: LauncherApps
-             and CrossProfileApps starts require a MAIN/LAUNCHER component,
-             so this twin gives those entry points a valid target inside the
-             paused profile. Adds a second Capsule icon to the work profile
-             app drawer. -->
-        <activity android:name=".ui.UnfreezeLauncherActivity"
-            android:theme="@android:style/Theme.NoDisplay"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:directBootAware="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
@@ -153,6 +137,26 @@
                 <action android:name="android.app.action.PROVISION_MANAGED_PROFILE" />
             </intent-filter>
         </receiver>
+
+        <!-- Re-arms the auto-freeze watcher after boot and after the work
+             profile user restarts (Work Mode toggles). -->
+        <receiver android:name=".receivers.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Fires the delayed auto-freeze pass; targeted by an explicit
+             PendingIntent so it survives a process death. -->
+        <receiver android:name=".receivers.FreezeAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Runs the freeze pass for the notification's "Freeze now" action,
+             inside the profile that owns the freeze decision. -->
+        <receiver android:name=".receivers.FreezeNowReceiver"
+            android:exported="false" />
 
         <!-- A FileProvider that proxies opened Fds from the other profile -->
         <provider

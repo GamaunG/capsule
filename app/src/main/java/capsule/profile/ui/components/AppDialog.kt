@@ -1,19 +1,16 @@
 package capsule.profile.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +40,6 @@ fun AppDialog(
     confirm: DialogButton? = null,
     dismiss: DialogButton? = null,
     message: String? = null,
-    infoText: String? = null,
     content: (@Composable () -> Unit)? = null,
     containerColor: Color? = null,
     dismissible: Boolean = true,
@@ -92,56 +88,38 @@ fun AppDialog(
                     )
                 }
                 Spacer(Modifier.height(2.dp))
-                if (infoText != null || confirm != null || dismiss != null) {
+                if (confirm != null || dismiss != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(modifier = Modifier.weight(1f, fill = false)) {
-                            if (infoText != null) {
-                                Text(
-                                    text = infoText,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                        if (dismiss != null) {
+                            PillButton(
+                                text = dismiss.text,
+                                onClick = {
+                                    dismiss.onClick()
+                                    if (dismiss.autoDismiss) onDismiss()
+                                },
+                                filled = false,
+                                destructive = dismiss.destructive,
+                                enabled = dismiss.enabled,
+                            )
+                            Spacer(Modifier.width(8.dp))
                         }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            if (dismiss != null) {
-                                PillButton(
-                                    text = dismiss.text,
-                                    onClick = {
-                                        dismiss.onClick()
-                                        if (dismiss.autoDismiss) onDismiss()
-                                    },
-                                    filled = false,
-                                    destructive = dismiss.destructive,
-                                    enabled = dismiss.enabled,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                            }
-                            if (confirm != null) {
-                                PillButton(
-                                    text = confirm.text,
-                                    onClick = {
-                                        if (!confirm.busy && confirm.enabled) {
-                                            confirm.onClick()
-                                            if (confirm.autoDismiss) onDismiss()
-                                        }
-                                    },
-                                    filled = true,
-                                    destructive = confirm.destructive,
-                                    busy = confirm.busy,
-                                    enabled = confirm.enabled,
-                                )
-                            }
+                        if (confirm != null) {
+                            PillButton(
+                                text = confirm.text,
+                                onClick = {
+                                    if (confirm.enabled) {
+                                        confirm.onClick()
+                                        if (confirm.autoDismiss) onDismiss()
+                                    }
+                                },
+                                filled = true,
+                                destructive = confirm.destructive,
+                                enabled = confirm.enabled,
+                            )
                         }
                     }
                 }
@@ -155,7 +133,6 @@ data class DialogButton(
     val onClick: () -> Unit = {},
     val destructive: Boolean = false,
     val autoDismiss: Boolean = true,
-    val busy: Boolean = false,
     val enabled: Boolean = true,
 )
 
@@ -165,7 +142,6 @@ private fun PillButton(
     onClick: () -> Unit,
     filled: Boolean,
     destructive: Boolean = false,
-    busy: Boolean = false,
     enabled: Boolean = true,
 ) {
     val (baseContainer, baseContent) =
@@ -197,24 +173,16 @@ private fun PillButton(
             shape = RoundedCornerShape(100.dp),
             color = containerColor,
             contentColor = contentColor,
-            onClick = { if (enabled) onClick() },
+            enabled = enabled,
+            onClick = onClick,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (busy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(start = 20.dp).size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = contentColor,
-                    )
-                }
-                Text(
-                    text,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                )
-            }
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            )
         }
     }
 }

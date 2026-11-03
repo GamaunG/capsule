@@ -10,6 +10,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -32,7 +33,6 @@ import capsule.profile.services.ICapsuleService
 import capsule.profile.ui.DummyActivity
 import capsule.profile.ui.MainActivity
 import java.io.BufferedReader
-import java.io.FileDescriptor
 import java.io.InputStreamReader
 
 /** Shared helpers for profile management, compat checks and notifications. */
@@ -49,10 +49,21 @@ object Utility {
      * Targets an Intent at our own instance in the other profile by resolving
      * it outside this package. Throws [IllegalStateException] when no other
      * profile exists.
+     *
+     * Only the system cross-profile forwarder (package "android") or a
+     * system-image component is accepted as the target: any third-party app
+     * can declare an intent filter for our internal actions, and handing it
+     * the bridge intent would leak the HMAC key bootstrap to it.
      */
     fun transferIntentToProfileUnsigned(context: Context, intent: Intent) {
         val info = context.packageManager.queryIntentActivities(intent, 0)
-        val target = info.firstOrNull { it.activityInfo.packageName != context.packageName }
+        val target =
+            info.firstOrNull { candidate ->
+                val pkg = candidate.activityInfo.packageName
+                val isSystemImage =
+                    (candidate.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                pkg != context.packageName && (pkg == "android" || isSystemImage)
+            }
         if (target != null) {
             intent.component =
                 ComponentName(
@@ -95,13 +106,36 @@ object Utility {
 
     /**
      * The first profile other than ours in this profile group, if any. Used
-     * for existence checks only; profile types are not distinguishable
-     * through public APIs.
+     * for existence checks; public APIs cannot distinguish profile types
+     * (managed vs clone), so on clone-profile devices this may be the clone —
+     * the capsule-owned case is still handled correctly through
+     * [isForeignWorkProfilePresent].
      */
     fun getWorkProfileUserHandle(context: Context): UserHandle? {
         val manager = context.getSystemService(UserManager::class.java)
         val me = android.os.Process.myUserHandle()
         return manager.userProfiles.firstOrNull { it != me }
+    }
+
+    /**
+     * True when a profile group member exists that Capsule can never own
+     * right now: our own package is not installed in it, so it is managed by
+     * another app (or its Capsule copy was removed). A profile Capsule owns
+     * always contains our package — the profile owner cannot be uninstalled
+     * or disabled — which is what keeps this check safe against false
+     * positives.
+     */
+    fun isForeignWorkProfilePresent(context: Context): Boolean {
+        val profile = getWorkProfileUserHandle(context) ?: return false
+        return try {
+            !context
+                .getSystemService(android.content.pm.LauncherApps::class.java)
+                .isPackageEnabled(context.packageName, profile)
+        } catch (e: Exception) {
+            // When in doubt, do not claim the profile is foreign: the regular
+            // probe path decides instead.
+            false
+        }
     }
 
     /**
@@ -122,7 +156,7 @@ object Utility {
     fun isWorkProfilePaused(context: Context): Boolean = getPausedWorkProfileHandle(context) != null
 
     /** (Re)installs all cross-profile intent filters and profile policies. */
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION") // setCrossProfileContactsSearchDisabled, no replacement
     fun enforceWorkProfilePolicies(context: Context) {
         val manager = context.getSystemService(DevicePolicyManager::class.java)
         val adminComponent =
@@ -264,15 +298,24 @@ object Utility {
         manager.addUserRestriction(adminComponent, UserManager.ALLOW_PARENT_PROFILE_APP_LINKING)
     }
 
-    /** Detects MIUI via a system property read. */
-    fun isMIUI(): Boolean =
-        try {
-            val proc = Runtime.getRuntime().exec("getprop ro.miui.ui.version.name")
-            val line = BufferedReader(InputStreamReader(proc.inputStream)).readLine()?.trim()
-            !line.isNullOrEmpty()
-        } catch (e: Exception) {
-            false
-        }
+    /** Detects MIUI via a system property read; the result is cached because
+     * the check spawns a process and runs on the UI thread's tap path. */
+    @Volatile
+    private var miuiCache: Boolean? = null
+
+    fun isMIUI(): Boolean {
+        miuiCache?.let { return it }
+        val result =
+            try {
+                val proc = Runtime.getRuntime().exec("getprop ro.miui.ui.version.name")
+                val line = BufferedReader(InputStreamReader(proc.inputStream)).readLine()?.trim()
+                !line.isNullOrEmpty()
+            } catch (e: Exception) {
+                false
+            }
+        miuiCache = result
+        return result
+    }
 
     fun drawableToBitmap(drawable: Drawable): Bitmap {
         if (drawable is BitmapDrawable) return drawable.bitmap
@@ -381,14 +424,6 @@ object Utility {
         return BitmapFactory.decodeFile(filePath, options)
     }
 
-    fun decodeSampledBitmap(fd: FileDescriptor, reqWidth: Int, reqHeight: Int): Bitmap? {
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFileDescriptor(fd, null, options)
-        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
-        options.inJustDecodeBounds = false
-        return BitmapFactory.decodeFileDescriptor(fd, null, options)
-    }
-
     /** Returns the extension after the last dot, or null when there is none. */
     fun getFileExtension(filePath: String): String? {
         val index = filePath.lastIndexOf(".")
@@ -412,8 +447,8 @@ object Utility {
 
     // Creating a notification channel is an IPC round-trip; the channel
     // persists per id, so each one only needs to be registered once.
-    @Volatile
-    private var createdChannels = mutableSetOf<String>()
+    private val createdChannels =
+        java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     /** Cross-version compatible notification builder with silent channels. */
     @Suppress("DEPRECATION")

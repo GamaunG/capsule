@@ -79,6 +79,10 @@ object WorkServiceHolder {
             true
         } catch (e: TimeoutCancellationException) {
             false
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            // Structured cancellation of the caller's scope must propagate,
+            // not read as a dead bridge.
+            throw e
         } catch (e: Exception) {
             false
         }
