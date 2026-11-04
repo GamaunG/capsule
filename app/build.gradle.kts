@@ -37,8 +37,8 @@ android {
         // every pre-Oreo branch was untestable legacy.
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 20
+        versionName = "0.2.0"
 
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
     }
