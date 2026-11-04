@@ -1,36 +1,40 @@
 # Capsule
 
-Repository: <https://github.com/GamaunG/capsule>
+Capsule is a free, open-source Android app that uses the **Work Profile**
+feature to run apps in an isolated space, separate from your main profile:
+install or clone apps into it, freeze them when idle, and move files across
+the boundary.
 
-Capsule is a Free and Open-Source (FOSS) app that leverages Android's
-**Work Profile** feature to provide an isolated space that you can install or
-clone apps into.
+Capsule is a Kotlin / Jetpack Compose / Material 3 rewrite of Haven, a
+modernized fork of Shelter.
 
-Capsule is a Jetpack Compose / Material 3 continuation of the
-[Shelter](https://github.com/PeterCxy/Shelter) lineage of work profile
-managers, rebuilt on a modern UI and build stack.
+## What's new over Shelter / Haven
 
-## Features
+- **Survives a Capsule reinstall.** Reinstalling Capsule in the main
+  profile re-attaches it to the existing work profile: cloning, freezing
+  and settings keep working, with no re-provisioning.
+- **Work-profile certificates.** Install and remove certificates in the
+  work profile's trust store.
+- **Main → work file picking.** Opt-in: apps in the main profile pick
+  files from the work profile through Android's system pickers — no
+  storage permissions needed.
+- **Paused-profile handling.** When Work Mode is off, the app no longer
+  kicks you out — it opens with the profile state and offers to resume the
+  profile right there.
 
-- Install, clone and uninstall apps inside a managed Work Profile
-- "Freeze" (hide) apps inside the profile to stop them from running
-- Auto-freeze apps on screen lock, with a configurable delay and
-  foreground-app skipping
-- Unfreeze & Launch shortcuts, including batch shortcuts for groups of apps
-- File Shuttle: browse and copy files across the profile boundary through the
-  system Documents UI
-- Cross-profile system file pickers (opt-in)
-- Managed app restrictions (DPC application restrictions) editor
-- Cross-profile widget providers and connected-app (cross-profile packages)
+## Also included
+
+- Install, clone and uninstall apps inside the profile
+- Freeze apps to stop them from running; auto-freeze on screen lock
+- "Unfreeze & Launch" and "Freeze all" home-screen shortcuts
+- File Shuttle: give your apps access to the other profile's files through
+  the system Files app and document pickers
+- Managed app restrictions editor; cross-profile widget and connected-app
   allowlists
-- Hardened cross-profile IPC: HMAC-signed intents with nonce replay
-  protection, plus a signature-level permission on the exported bridge
-  activity
-- Diagnostic report for provisioning failures on customized ROMs
 
 ## Requirements
 
-- Android 7.0 (API 24) or later
+- Android 8.0 (API 26) or later
 - A device with intact Work Profile support (AOSP-like systems work best;
   heavily customized vendor ROMs may break the underlying platform feature)
 
@@ -42,9 +46,19 @@ Debug builds use the public keystore committed in `app/debug.keystore`:
 ./gradlew assembleDebug
 ```
 
-Release builds require signing properties pointing at a keystore outside the
-project tree (see `docs/RELEASING.md`).
+Release builds require signing properties pointing at a keystore outside
+the project tree (see `docs/RELEASING.md`).
 
 ## License
 
 GPLv3. See [LICENSE](LICENSE).
+
+## Credits
+
+- [Shelter](https://github.com/PeterCxy/Shelter) — the original work
+  profile manager this project is built on
+- [Haven](https://github.com/Kenneth-Cho-InfoSec/Haven) — the direct
+  upstream: the app restrictions editor, the cross-profile file picker
+  settings and the setup wizard come from it
+- [TestDPC](https://github.com/googlesamples/android-testdpc) — Google's
+  sample device policy controller, the reference for the DPC code
