@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="service_title">Servicio Capsule</string>
-    <string name="service_desc">Capsule se esta ejecutando actualmente…</string>
     <string name="service_auto_freeze_title">Suspensión automática pendiente</string>
     <string name="device_admin_desc">Servicio de aislamiento de aplicaciones</string>
     <string name="show_all_warning">Manipular aplicaciones ocultas en la lista podría causar fallos y toda clase de comportamientos inesperados. Sin embargo, esta característica podría ser de utilidad cuando las ROMs personalizadas del fabricante no habilitan todas las aplicaciones del sistema necesarias dentro del perfil de trabajo por defecto. Si continuas, estas por tu cuenta.</string>
@@ -10,7 +8,6 @@
     <string name="settings_interaction">Interacción</string>
     <string name="settings_cross_profile_file_chooser">Pasarela de archivos</string>
     <string name="provision_finished">Configuración de Capsule completa. Reiniciando Capsule a continuación. Si Capsule no se inicia de manera automática puedes iniciarlo nuevamente desde tu lanzador de aplicaciones.</string>
-    <string name="work_profile_not_found">Perfil de trabajo no encontrado. Por favor reinicia la aplicación para aprovisionar el perfil.</string>
     <string name="clone_success">Aplicación \"%s\" clonada exitosamente</string>
     <string name="uninstall_success">Aplicación \"%s\" desinstalada exitosamente</string>
     <string name="freeze_success">Aplicación \"%s\" suspendida exitosamente</string>

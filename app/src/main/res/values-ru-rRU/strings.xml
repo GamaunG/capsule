@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">Служба изоляции приложений</string>
-    <string name="service_title">Служба Capsule</string>
-    <string name="service_desc">Capsule запущен …</string>
     <string name="fragment_profile_main">Основной</string>
     <string name="fragment_profile_work">Capsule</string>
     <string name="list_item_disabled">[Заморожено] %s</string>
@@ -24,7 +22,6 @@
     <string name="settings_source_code">Исходный код</string>
     <string name="settings_bug_report">Отслеживание проблем</string>
     <string name="provision_finished">Настройка Capsule завершена. Перезапускам Capsule. Если Capsule не откроется сам, запустите его из вашего лаучнера.</string>
-    <string name="work_profile_not_found">Рабочий профиль не найден. Перезапустите приложение, чтобы пересоздать профиль.</string>
     <string name="clone_success">Приложение \"%s\" успешно клонировано</string>
     <string name="uninstall_success">Приложение \"%s\" успешно удалено</string>
     <string name="freeze_success">Приложение \"%s\" успешно заморожено</string>

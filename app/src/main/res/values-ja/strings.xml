@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">アプリ隔離サービス</string>
-    <string name="service_title">Capsuleサービス</string>
-    <string name="service_desc">Capsuleは実行中です…</string>
     <string name="service_auto_freeze_title">自動凍結は保留中です</string>
     <string name="service_auto_freeze_now">今すぐ凍結</string>
     <string name="service_auto_freeze_desc">Capsuleは、次の画面ロック時に「凍結解除＆起動」から実行したアプリを自動でフリーズさせます。</string>
@@ -39,7 +37,6 @@
     <string name="settings_auto_freeze_service_desc">画面ロック中に「凍結解除＆起動」のショートカットから実行されたアプリを自動的に凍結します。</string>
     <string name="provision_finished">Capsuleのセットアップが完了しました。Capsuleを再起動しています。Capsuleが自動的に再度立ち上がらない場合ランチャーから手動で起動してください。</string>
     <string name="continue_anyway">無視して続行</string>
-    <string name="work_profile_not_found">仕事用プロファイルが見つかりません。プロファイルを再生成するためにアプリを再起動してください。</string>
     <string name="clone_success">アプリ「%s」は正常に複製されました</string>
     <string name="uninstall_success">アプリ「%s」は正常にアンインストールされました</string>
     <string name="freeze_success">アプリ「%s」は正常に凍結されました</string>

@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">Usługa izolowania aplikacji</string>
-    <string name="service_title">Usługa Capsule</string>
-    <string name="service_desc">Capsule jest uruchomiony…</string>
     <string name="service_auto_freeze_title">Auto-zamrożenie w trakcie</string>
     <string name="service_auto_freeze_desc">Capsule automatycznie zamrozi aplikacje uruchomione przez \"Odmróź i uruchom\" na następnym zablokowaniu ekranu.</string>
     <string name="service_auto_freeze_now">Zamróź teraz</string>
@@ -41,7 +39,6 @@
     <string name="settings_source_code">Kod źródłowy</string>
     <string name="settings_bug_report">Zgłaszanie / śledzenie błędów</string>
     <string name="provision_finished">Instalacja Capsule zakończona. Restartowanie Capsule. Jeżeli Capsule nie włączy się automatycznie, uruchom go ponownie z poziomu launchera.</string>
-    <string name="work_profile_not_found">Nie znaleziono profilu służbowego. Proszę uruchomić aplikację ponownie, aby sprawdzić profil ponownie.</string>
     <string name="clone_success">Aplikacja \"%s\" została sklonowana pomyślnie</string>
     <string name="uninstall_success">Aplikacja \"%s\" została odinstalowana pomyślnie</string>
     <string name="freeze_success">Aplikacja \"%s\" została zamrożona pomyślnie</string>

@@ -7,7 +7,6 @@
     <string name="unfreeze_app">활성화</string>
     <string name="setup_wizard_ready">준비되셨나요?</string>
     <string name="setup_wizard_failed">설정 실패</string>
-    <string name="service_title">Capsule 서비스</string>
     <string name="service_auto_freeze_title">자동 비활성화 대기 중</string>
     <string name="app_installing">설치 중...</string>
     <string name="service_auto_freeze_now">지금 비활성화 시작하기</string>
@@ -33,7 +32,6 @@
     <string name="settings_dont_freeze_foreground">포어그라운드 실행 중인 앱 제외하기</string>
     <string name="settings_version">버전</string>
     <string name="settings_bug_report">버그 제보 / 이슈 추적 시스템</string>
-    <string name="work_profile_not_found">직장 프로필을 찾을 수 없습니다. 프로필을 다시 구성하려면 앱을 다시 실행해 주세요.</string>
     <string name="provision_finished">Capsule의 설정 작업이 완료되어 Capsule를 다시 시작합니다. Capsule가 자동으로 시작되지 않을 경우 홈 화면에서 수동으로 Capsule를 실행해 주세요.</string>
     <string name="clone_success">\"%s\" 앱이 복제되었습니다</string>
     <string name="uninstall_success">\"%s\" 앱이 제거되었습니다</string>
@@ -65,7 +63,6 @@
     <string name="launch_app_fail">%s 앱에 그래픽 인터페이스가 존재하지 않아 실행할 수 없습니다.</string>
     <string name="settings">설정</string>
     <string name="settings_source_code">소스 코드</string>
-    <string name="service_desc">Capsule 서비스가 실행 중입니다.</string>
     <string name="show_all_warning">목록에서 숨겨진 앱을 수정할 경우 앱 오작동을 비롯한 예상치 못한 현상을 유발할 수 있습니다. 다만 오류가 있는 제조사 ROM으로 인해 모든 필수 시스템 앱이 직장 프로필에서 활성화되지 않았다면 이 기능이 유용할 수 있습니다. 계속 진행하시는 경우 상기된 위험을 감수하는 것입니다.</string>
     <string name="search">검색</string>
     <string name="setup_wizard_ready_text">이제 Capsule 설정 작업을 시작합니다. 본 기기가 Android 버전 7 이하를 실행 중이라면, 방해 금지 모드가 <b>꺼진 상태</b>인지 꼭 확인해 주세요. 이후 <b>푸시 알림을 눌러야</b> 설정 작업이 마무리되기 때문입니다.

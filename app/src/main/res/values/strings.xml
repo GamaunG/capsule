@@ -34,8 +34,6 @@
     <string name="setup_diagnostics_copied">Provisioning details copied.</string>
 
     <!-- Notifications -->
-    <string name="service_title">Capsule Service</string>
-    <string name="service_desc">Capsule is now running…</string>
     <string name="service_auto_freeze_title">Auto-freeze pending</string>
     <string name="service_auto_freeze_desc">Apps on the Auto Freeze list will be frozen the next time the screen is locked.</string>
     <string name="service_auto_freeze_now">Freeze Now</string>
@@ -128,7 +126,6 @@
 
     <!-- Toasts -->
     <string name="provision_finished">Capsule setup complete. Now restarting Capsule. If Capsule didn\'t start automatically, you may launch it again from your launcher.</string>
-    <string name="work_profile_not_found">Work profile not found. Please restart the app to re-provision the profile.</string>
 
     <!-- Paused / unreachable / absent work profile -->
     <string name="work_profile_paused_title">Work profile is paused</string>

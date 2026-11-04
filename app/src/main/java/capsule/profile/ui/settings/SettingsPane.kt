@@ -193,7 +193,6 @@ fun SettingsPane(
                 ) {
                     manager.setAutoFreezeServiceEnabled(it)
                     autoFreeze = it
-                    if (it) settings.requestWorkNotificationPermission()
                 }
                 SettingActionRow(
                     title = stringResource(R.string.settings_auto_freeze_delay),

@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">App isolatiedienst</string>
-    <string name="service_title">Capsule Service</string>
-    <string name="service_desc">Capsule is nu actief …</string>
     <string name="auto_freeze">Bevries automatisch</string>
     <string name="allow_cross_profile_widgets">Widgets toestaan in Hoofdprofiel</string>
     <string name="search">Zoeken</string>

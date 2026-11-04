@@ -335,13 +335,6 @@ object Utility {
         }
     }
 
-    /** Drops entries from a stored app list that are no longer installed. */
-    fun deleteMissingApps(pref: String, apps: List<ApplicationInfoWrapper>) {
-        val installed = apps.map { it.packageName }.toSet()
-        val list = LocalStorageManager.getStringList(pref).filter { it in installed }
-        LocalStorageManager.setStringList(pref, list)
-    }
-
     /** Creates a launcher shortcut. Returns false when the launcher does not
      * support pinning. */
     fun createLauncherShortcut(

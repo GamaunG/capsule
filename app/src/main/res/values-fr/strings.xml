@@ -2,8 +2,6 @@
 <resources>
     <string name="service_auto_freeze_now">Geler Maintenant</string>
     <string name="device_admin_desc">Service d\'isolation d\'application</string>
-    <string name="service_title">Service Capsule</string>
-    <string name="service_desc">Capsule est en fonctionnement…</string>
     <string name="service_auto_freeze_title">Gel automatique en attente</string>
     <string name="service_auto_freeze_desc">Capsule va geler automatiquement les applications chargées depuis \"Dégeler &amp; Lancer\" sur le prochain verrouillage d\'écran.</string>
     <string name="app_installing">Installation...</string>
@@ -44,7 +42,6 @@
     <string name="settings_version">Version</string>
     <string name="settings_source_code">Code Source</string>
     <string name="settings_bug_report">Rapport de bogue / Suivi des problèmes</string>
-    <string name="work_profile_not_found">Profil Professionnel introuvable. Veuillez redémarrer l\'application pour réapprovisionner le Profil.</string>
     <string name="clone_success">Application \"%s\" clonée avec succès</string>
     <string name="freeze_success">Application \"%s\" gelée avec succès</string>
     <string name="uninstall_success">Application \"%s\" désinstallée avec succès</string>

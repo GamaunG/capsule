@@ -13,8 +13,7 @@ import capsule.profile.util.Utility
  * The entry points the Resume button can use to turn a paused work profile
  * back on. The platform only lifts quiet mode after the user answers the
  * system confirmation dialog, but several APIs can request it. The method
- * is a persisted setting; every step of a run is logged with the
- * RESUME TEST prefix so the device log identifies the path that works.
+ * is a persisted setting; every step of a run is logged for diagnosis.
  */
 enum class ResumeMethod(
     val id: String,
@@ -64,7 +63,7 @@ enum class ResumeMethod(
     fun run(activity: Activity): Boolean {
         val user = Utility.getWorkProfileUserHandle(activity)
         if (user == null) {
-            CapsuleLog.w("RESUME TEST method=$id aborted: no work profile user")
+            CapsuleLog.w("Resume method=$id aborted: no work profile user")
             return false
         }
         return try {
@@ -75,7 +74,7 @@ enum class ResumeMethod(
             }
         } catch (e: Exception) {
             CapsuleLog.w(
-                "RESUME TEST method=$id API failed: ${e.javaClass.simpleName}: ${e.message}",
+                "Resume method=$id API failed: ${e.javaClass.simpleName}: ${e.message}",
                 e,
             )
             false
@@ -86,7 +85,7 @@ enum class ResumeMethod(
     private fun runForward(activity: Activity): Boolean {
         val intent = Intent(DummyActivity.RESUME_PROFILE)
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        CapsuleLog.i("RESUME TEST method=$id starting the forwarded intent $intent")
+        CapsuleLog.i("Resume method=$id starting the forwarded intent $intent")
         Utility.transferIntentToProfileUnsigned(activity, intent)
         activity.startActivity(intent)
         return true
@@ -97,16 +96,16 @@ enum class ResumeMethod(
         val launcherApps = activity.getSystemService(LauncherApps::class.java)
         val activities = launcherApps.getActivityList(null, user)
         CapsuleLog.i(
-            "RESUME TEST method=$id work launcher activities visible while paused: ${activities.size}",
+            "Resume method=$id work launcher activities visible while paused: ${activities.size}",
         )
         val target =
             activities.firstOrNull { it.componentName.packageName != activity.packageName }
         if (target == null) {
-            CapsuleLog.w("RESUME TEST method=$id aborted: no other work app to target")
+            CapsuleLog.w("Resume method=$id aborted: no other work app to target")
             return false
         }
         CapsuleLog.i(
-            "RESUME TEST method=$id LauncherApps.startMainActivity(${target.componentName}, $user)",
+            "Resume method=$id LauncherApps.startMainActivity(${target.componentName}, $user)",
         )
         launcherApps.startMainActivity(target.componentName, user, null, null)
         return true
@@ -116,7 +115,7 @@ enum class ResumeMethod(
     private fun runAppDetails(activity: Activity, user: UserHandle): Boolean {
         val launcherApps = activity.getSystemService(LauncherApps::class.java)
         val component = ComponentName(activity, MainActivity::class.java)
-        CapsuleLog.i("RESUME TEST method=$id startAppDetailsActivity($component, $user)")
+        CapsuleLog.i("Resume method=$id startAppDetailsActivity($component, $user)")
         launcherApps.startAppDetailsActivity(component, user, null, null)
         return true
     }

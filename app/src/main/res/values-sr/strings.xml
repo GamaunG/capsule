@@ -25,8 +25,6 @@
     <string name="setup_wizard_ready">Спремни?</string>
     <string name="setup_wizard_please_wait">Сачекајте…</string>
     <string name="setup_wizard_failed">Подешавање није успело</string>
-    <string name="service_title">Шелтер услуга</string>
-    <string name="service_desc">Шелтер сада ради …</string>
     <string name="service_auto_freeze_now">Замрзни сада</string>
     <string name="app_installing">Инсталирање...</string>
     <string name="fragment_profile_main">Главни</string>
@@ -62,7 +60,6 @@
     <string name="settings_source_code">Изворни код</string>
     <string name="settings_bug_report">Пријава грешке / Праћење проблема</string>
     <string name="provision_finished">Подешавање Шелтера је завршено. Сада поново покрећемо Шелтер. Ако се Шелтер није покренуо аутоматски, можете га поново покренути из покретача.</string>
-    <string name="work_profile_not_found">Радни профил није пронађен. Поново покрените апликацију да бисте поново обезбедили профил.</string>
     <string name="clone_success">Апликација \"%s\" је успешно клонирана</string>
     <string name="freeze_success">Апликација \"%s\" је успешно замрзнута</string>
     <string name="unfreeze_success">Апликација \"%s\" је успешно одмрзнута</string>

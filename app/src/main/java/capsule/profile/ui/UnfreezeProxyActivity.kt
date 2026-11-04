@@ -19,7 +19,7 @@ import capsule.profile.util.SettingsManager
 class UnfreezeProxyActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        CapsuleLog.i("RESUME TEST forwarded proxy reached in user ${Process.myUserHandle()}")
+        CapsuleLog.i("Resume proxy reached user ${Process.myUserHandle()}")
         ensureManagers()
         // A no-display activity must finish before it is ever shown.
         finish()

@@ -2,8 +2,6 @@
 <resources>
     <string name="device_admin_desc">App 隔离服务</string>
     <!-- Notifications -->
-    <string name="service_title">Capsule 服务</string>
-    <string name="service_desc">Capsule 正在运行 …</string>
     <string name="service_auto_freeze_title">自动冻结等待中</string>
     <string name="service_auto_freeze_desc">Capsule 将会在您下次锁屏时自动冻结使用 \"解冻并运行\" 启动的应用。</string>
     <string name="service_auto_freeze_now">立刻冻结</string>
@@ -49,7 +47,6 @@
     <string name="settings_bug_report">Bug 报告</string>
     <!-- Toast Long Texts -->
     <string name="provision_finished">Capsule 已初始化完成，正在启动 Capsule。如果 Capsule 没有自动启动，请您从启动器手动启动它。</string>
-    <string name="work_profile_not_found">工作用户不可用，请重新启动 Capsule 以重新初始化。</string>
     <string name="clone_success">应用 \"%s\" 克隆成功</string>
     <string name="uninstall_success">应用 \"%s\" 卸载成功</string>
     <string name="freeze_success">应用 \"%s\" 冻结成功</string>

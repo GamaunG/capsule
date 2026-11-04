@@ -45,7 +45,6 @@
 \n
 \nమీరైతే \"తదుపరి\"పై క్లిక్ చేసి బయటకు వెళ్ళండి.</string>
     <string name="miui_cannot_clone">MIUIలో మరో ప్రొఫైలుకు నాన్-సిస్టమ్ యాప్‌లను క్లోన్ చేయడం ప్రస్తుతం సాధ్యం కాదు. దయచేసి మీ సిస్టమ్ యొక్క యాప్ స్టోర్ (ఉదాహరణకు, <b>ప్లే స్టోర్</b>)ని ఇతర ప్రొఫైలుకు క్లోన్ చేసి, అక్కడ నుండి యాప్‌లను ఇన్‌స్టాల్ చేయండి.</string>
-    <string name="service_title">షెల్టర్ సేవ</string>
     <string name="unfreeze_and_launch">అన్‌ఫ్రీజ్ చేసి ప్రారంభించండి</string>
     <string name="settings_services">సేవలు</string>
     <string name="settings_auto_freeze_service">ఆటో ఫ్రిజ్ సేవ</string>
@@ -54,7 +53,6 @@
     <string name="unfreeze_app">అన్‌ఫ్రిజ్</string>
     <string name="clone_fail_system_app">షెల్టర్ కంట్రోల్ లో లేని ప్రొఫైల్‌కు సిస్టమ్ యాప్‌లను క్లోన్ చేయలేరు.</string>
     <string name="setup_wizard_failed">సెటప్ విఫలమైంది</string>
-    <string name="work_profile_not_found">వర్క్ ప్రొఫైల్ కనుగొనబడలేదు. ప్రొఫైల్‌ను మళ్లీ అందుబాటులోకి తీసుకురావడానికి దయచేసి యాప్‌ను పునఃప్రారంభించండి.</string>
     <string name="unfreeze_success">అనువర్తనం \"%s\" విజయవంతంగా అన్‌ఫ్రిజ్ చేయబడింది</string>
     <string name="settings_version">వర్షన్</string>
     <string name="create_unfreeze_shortcut">అన్‌ఫ్రిజ్ మరియు/లేదా ప్రారంభ Shortcut‌ని సృష్టించు</string>
@@ -73,7 +71,6 @@
     <string name="search">శోధించండి</string>
     <string name="unsupported_launcher">మీ లాంచర్‌కు షార్ట్‌కట్స్‌ను జోడించలేరు. మరింత సమాచారం కోసం దయచేసి డెవలపర్‌ను సంప్రదించండి.</string>
     <string name="auto_freeze">ఆటో ఫ్రీజ్</string>
-    <string name="service_desc">షెల్టర్ ఇప్పుడు నడుస్తోంది…</string>
     <string name="settings_auto_freeze_delay">ఆటో ఫ్రిజ్ ఆలస్యం</string>
     <string name="setup_wizard_compatibility_text">షెల్టర్ AOSP లాంటి ఆండ్రాయిడ్ డెరివేటివ్‌లపై అభివృద్ధి చేయబడింది మరియు పరీక్షించబడింది. ఇందులో AOSP (ఆండ్రాయిడ్ ఓపెన్ సోర్స్ ప్రాజెక్ట్), Google Android (Pixelsపై), మరియు <b>LineageOS వంటి AOSP ఆధారిత ఓపెన్ సోర్స్ కస్టమ్ ROMలు</b> ఎక్కువగా ఉన్నాయి. మీ ఫోన్ పై ఉంచిన ఆండ్రాయిడ్ డెరివేటివ్‌లలో ఏదైనా ఉంటే, అభినందనలు! షెల్టర్ మీ పరికరంలో సరిగా పనిచేసే అవకాశం ఉంది.
 \n

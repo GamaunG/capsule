@@ -234,17 +234,27 @@ class DummyActivity : ComponentActivity() {
         // This activity is singleTask, so a launch while an instance is alive
         // (e.g. a bridge rebind during a pending install confirmation) is
         // delivered here instead of creating a new instance — and its launcher
-        // already received RESULT_CANCELED. The two stateless bridge actions
-        // can still be carried out: their effect (binding the service, syncing
-        // a preference) does not depend on the cancelled result. Anything else
-        // would break the flow owned by the original intent and is dropped.
+        // already received RESULT_CANCELED. A preference write is stateless:
+        // its effect does not depend on the cancelled result, and it cannot
+        // disturb the flow that owns this instance, so it is applied even
+        // while that flow is in flight (finishing here would kill it).
+        // Anything else would break the flow owned by the original intent
+        // and is dropped.
         val busy =
             awaitingInstallPermission ||
                 screenFlowActive ||
                 !installProgress.isNaN() ||
                 this.intent.hasExtra("callback")
         if (busy) {
-            CapsuleLog.w("Dropping re-delivered action ${intent.action}: another operation is still in flight")
+            if (SYNCHRONIZE_PREFERENCE == intent.action) {
+                if (AuthenticationUtility.checkIntent(intent)) {
+                    actionSynchronizePreference(intent, finishWhenDone = false)
+                } else {
+                    CapsuleLog.w("Rejecting unauthenticated re-delivered action ${intent.action}")
+                }
+            } else {
+                CapsuleLog.w("Dropping re-delivered action ${intent.action}: another operation is still in flight")
+            }
             return
         }
         when (intent.action) {
@@ -841,10 +851,13 @@ class DummyActivity : ComponentActivity() {
         }
     }
 
-    private fun actionSynchronizePreference(deliveredIntent: Intent) {
+    private fun actionSynchronizePreference(
+        deliveredIntent: Intent,
+        finishWhenDone: Boolean = true,
+    ) {
         val name =
             deliveredIntent.getStringExtra("name") ?: run {
-                finish()
+                if (finishWhenDone) finish()
                 return
             }
         when {
@@ -870,7 +883,16 @@ class DummyActivity : ComponentActivity() {
                 FreezeService.armIfNeeded(this)
             }
         }
-        finish()
+        // The service-toggle delivery carries its notification request along:
+        // a separate launch right behind this one raced the singleTask bridge
+        // and the preference intent could be dropped. Only this delivery may
+        // open the permission screen; a re-delivery while another flow owns
+        // the activity just applies the preference.
+        if (finishWhenDone && deliveredIntent.getBooleanExtra(EXTRA_REQUEST_NOTIFICATIONS, false)) {
+            actionRequestNotificationPermission()
+            return
+        }
+        if (finishWhenDone) finish()
     }
 
     companion object {
@@ -903,6 +925,10 @@ class DummyActivity : ComponentActivity() {
         // Requests the notification permission in this profile; used when the
         // Auto Freeze service is enabled from the other profile's settings.
         const val REQUEST_NOTIFICATION_PERMISSION = "capsule.profile.action.REQUEST_NOTIFICATION_PERMISSION"
+
+        // SYNCHRONIZE_PREFERENCE extra: also request this profile's
+        // notification permission in the same delivery.
+        const val EXTRA_REQUEST_NOTIFICATIONS = "request_notification_permission"
 
         // Callable from the other side without a signature (user-visible).
         private val ACTIONS_ALLOWED_WITHOUT_SIGNATURE =

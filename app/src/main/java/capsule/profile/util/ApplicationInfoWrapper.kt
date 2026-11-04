@@ -29,7 +29,6 @@ class ApplicationInfoWrapper private constructor() : Parcelable {
     val packageName: String get() = requireNotNull(info).packageName
     val labelOrDefault: String get() = label ?: packageName
     val sourceDir: String get() = requireNotNull(info).sourceDir
-    val enabled: Boolean get() = requireNotNull(info).enabled
     val infoValue: ApplicationInfo get() = requireNotNull(info)
 
     val splitApks: Array<String>?

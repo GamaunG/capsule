@@ -3,7 +3,6 @@
     <string name="setup_wizard_permissions">Falemos de los permisos</string>
     <string name="setup_wizard_compatibility">Compatibilidá</string>
     <string name="provision_finished">Completóse la configuración de Capsule y va reaniciase. Si Capsule nun s\'anició automáticamente, pues volver llanzalu dende\'l llanzador.</string>
-    <string name="work_profile_not_found">Nun s\'atopó\'l perfil de trabayu. Volvi aniciar l\'aplicación pa volver fornir el perfil, por favor.</string>
     <string name="device_admin_desc">Serviciu d\'aislamientu d\'aplicaciones</string>
     <string name="setup_wizard_welcome">Afáyate en Capsule</string>
     <string name="setup_wizard_welcome_text">Capsule ye una aplicación que t\'ayuda a executar aplicaciones nun perfil aisláu. Esto ye posible per duana de la carauterística <b>Perfil de trabayu</b> d\'Android.
@@ -28,8 +27,6 @@
 \nSi nun encaboxesti la configuración, entós el problema ye qu\'hai incompatibilidaes col sistema o hai conflictos ente Capsule y otros xestores del perfil de trabayu. Desafortunadamente, nun podemos facer muncho más.
 \n
 \nCalca «Siguiente» pa colar.</string>
-    <string name="service_title">Serviciu d\'aislamientu</string>
-    <string name="service_desc">Capsule ta n\'execución…</string>
     <string name="service_auto_freeze_title">Desactivación automática pendiente</string>
     <string name="service_auto_freeze_desc">Capsule va desactivar les aplicaciones llanzaes dende «Activar y llanzar» la próxima vegada que se bloquie la pantalla.</string>
     <string name="service_auto_freeze_now">Desactivar agora</string>

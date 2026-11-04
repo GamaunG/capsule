@@ -438,7 +438,12 @@ private fun AppActionsSheet(
                         onClick = { onWidgets(app.packageName !in state.crossProfileWidgetProviders) },
                     )
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && inOtherProfile) {
+                    // Cross-profile interaction needs the app on both sides:
+                    // the allowlist only matters for apps that could actually
+                    // reach their own counterpart in the other profile. There
+                    // is no manifest query for CrossProfileApps usage, so the
+                    // both-profiles presence is the closest gate.
                     SheetAction(
                         icon = sync_alt,
                         label = stringResource(R.string.allow_cross_profile_interaction),

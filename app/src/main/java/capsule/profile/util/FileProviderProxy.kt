@@ -2,7 +2,6 @@ package capsule.profile.util
 
 import android.net.Uri
 import android.os.ParcelFileDescriptor
-import androidx.annotation.NonNull
 import androidx.core.content.FileProvider
 import java.io.FileNotFoundException
 
@@ -25,7 +24,6 @@ class FileProviderProxy : FileProvider() {
         private var sProxy: UriForwardProxy? = null
 
         /** Registers the Uri to forward and returns a temporary proxy Uri. */
-        @NonNull
         fun setUriForwardProxy(proxy: UriForwardProxy, suffix: String): Uri {
             sProxy = proxy
             return Uri.parse("content://$AUTHORITY_NAME$FORWARD_PATH_PREFIX/temp.$suffix")

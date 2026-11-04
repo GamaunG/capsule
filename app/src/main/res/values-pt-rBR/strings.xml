@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">Serviço de isolamento</string>
-    <string name="service_title">Serviço do Capsule</string>
-    <string name="service_desc">O Capsule está funcionando …</string>
     <string name="service_auto_freeze_title">Auto-suspensão pendente</string>
     <string name="service_auto_freeze_desc">O Capsule automaticamente suspenderá os apps executados via \"Reativar e Iniciar\" no próximo intento de bloqueio da tela.</string>
     <string name="service_auto_freeze_now">Suspender agora</string>
@@ -41,7 +39,6 @@
     <string name="settings_version">Versão</string>
     <string name="settings_source_code">Código-fonte</string>
     <string name="provision_finished">Configuração do Capsule concluída. Reiniciando o Capsule. Se o Capsule não iniciar automaticamente, você pode executá-lo novamente do seu lançador.</string>
-    <string name="work_profile_not_found">Perfil de trabalho não foi encontrado. Por favor reinicie o app para verificar o perfil de novo.</string>
     <string name="uninstall_success">O app \"%s\" foi desinstalado com sucesso</string>
     <string name="freeze_success">O app \"%s\" foi suspenso com sucesso</string>
     <string name="unfreeze_success">O app \"%s\" foi reativado com sucesso</string>

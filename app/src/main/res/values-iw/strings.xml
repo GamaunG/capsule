@@ -18,9 +18,7 @@
     <string name="setup_wizard_please_wait">נא להמתין…</string>
     <string name="setup_wizard_please_wait_text">אנחנו מנסים לאתחל את פרופיל העבודה ולהגדיר את Capsule במכשיר שלך.</string>
     <string name="setup_wizard_failed">ההגדרה נכשלה</string>
-    <string name="service_desc">Capsule פועל כעת…</string>
     <string name="service_auto_freeze_title">הקפאה אוטומטית בהמתנה</string>
-    <string name="service_title">שירות Capsule</string>
     <string name="service_auto_freeze_desc">Capsule יקפיא אוטומטית אפליקציות שהושקו מ-\"Unfreeze &amp; Launch\" באירוע נעילת המסך הבא.</string>
     <string name="service_auto_freeze_now">להקפיא עכשיו</string>
     <string name="app_installing">מתקין...</string>
@@ -81,7 +79,6 @@
     <string name="freeze_all_success">כל האפליקציות ברשימת \"הקפאה אוטומטית\" הוקפאו בהצלחה.</string>
     <string name="provision_finished">הגדרת המקלט הושלמה. כעת מפעיל מחדש את Capsule. אם Capsule לא הופעל אוטומטית, תוכל להפעיל אותו שוב מהמפעיל שלך.</string>
     <string name="clone_success">היישום \"%s\" שוכפל בהצלחה</string>
-    <string name="work_profile_not_found">פרופיל עבודה לא נמצא. אנא הפעל מחדש את האפליקציה כדי להקצות מחדש את הפרופיל.</string>
     <string name="settings_dont_freeze_foreground_desc">אל תקפיא אפליקציות בחזית (עם פעילות גלויה) כאשר אתה נועל את המסך. זה יכול להיות שימושי עבור אפליקציות כמו נגני מוזיקה, אבל תצטרך להקפיא אותן באופן ידני באמצעות \"קיצור דרך להקפאת אצווה\" לאחר מכן.</string>
     <string name="settings_source_code">קוד מקור</string>
     <string name="settings_block_contacts_searching_desc">דחיית גישה מהפרופיל הראשי לאנשי קשר בתוך פרופיל העבודה.</string>

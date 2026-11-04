@@ -43,7 +43,6 @@
     <string name="setup_wizard_please_wait">Λίγη υπομονή…</string>
     <string name="setup_wizard_please_wait_text">Προσπάθεια ενεργοποίησης του Προφίλ Εργασίας και παραμετροποίησης του Capsule στη συσκευή.</string>
     <string name="provision_finished">Η παραμετροποίηση του Capsule ολοκληρώθηκε. Πραγματοποιείται επανεκκίνηση του Capsule. Αν το Capsule δεν ξεκίνησε αυτόματα, μπορείς να το εκκινήσεις ξανά από το μενού εφαρμογών της συσκευής.</string>
-    <string name="work_profile_not_found">Το Προφίλ Εργασίας δεν βρέθηκε. Επανεκκίνησε την εφαρμογή για προσπάθεια επαναφόρτωσής του.</string>
     <string name="clone_fail_system_app">Αδυναμία κλωνοποίησης εφαρμογών συστήματος σε ένα Προφίλ που δεν ελέγχεται από το Capsule.</string>
     <string name="unsupported_launcher">Αδυναμία δημιουργίας συντομεύσεων. Επικοινώνησε με τον προγραμματιστή του Capsule για περισσότερες πληροφορίες.</string>
     <string name="launch_app_fail">Αδυναμία εκκίνησης της εφαρμογής %s λόγω του ότι δεν υποστηρίζει γραφικό περιβάλλον (GUI).</string>
@@ -81,8 +80,6 @@
 \n
 \nΟρισμένες προηγμένες λειτουργίες του Capsule ενδέχεται να απαιτούν περισσότερες άδειες <b>εκτός</b> του προφίλ εργασίας. Όταν χρειάζεται, το Capsule θα ζητήσει ξεχωριστά αυτά τα δικαιώματα όταν ενεργοποιήσετε τις αντίστοιχες δυνατότητες.</string>
     <string name="setup_wizard_failed">Αποτυχία ενεργοποίησης</string>
-    <string name="service_title">Υπηρεσία του Capsule</string>
-    <string name="service_desc">Το Capsule είναι σε λειτουργία…</string>
     <string name="service_auto_freeze_title">Αναμονή αυτόματου παγώματος εφαρμογών</string>
     <string name="service_auto_freeze_now">Πάγωσε τώρα</string>
     <string name="app_installing">Εγκατάσταση...</string>

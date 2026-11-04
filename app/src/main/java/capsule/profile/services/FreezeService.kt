@@ -234,15 +234,23 @@ class FreezeService : Service() {
                 // how they were launched — unless the whole service is off and
                 // this pass comes from an explicit user action.
                 if (forceListApps || SettingsManager.getAutoFreezeServiceEnabled()) {
-                    for (pkg in SettingsManager.getAutoFreezeList()) {
+                    val list = SettingsManager.getAutoFreezeList()
+                    if (list.isEmpty()) {
+                        CapsuleLog.i("Auto-freeze pass: the Auto Freeze list is empty")
+                    }
+                    for (pkg in list) {
                         val unfrozen =
                             try {
                                 !dpm.isApplicationHidden(adminComponent, pkg)
                             } catch (e: Exception) {
+                                // Not installed (anymore) or the admin is gone.
+                                CapsuleLog.i("Auto-freeze pass: $pkg is not freezeable here")
                                 false
                             }
                         if (unfrozen) targets.add(pkg)
                     }
+                } else {
+                    CapsuleLog.i("Auto-freeze pass: the service is off; only session apps freeze")
                 }
 
                 if (targets.isNotEmpty()) {
@@ -258,13 +266,25 @@ class FreezeService : Service() {
                             shouldFreeze = false
                         }
                         if (shouldFreeze) {
-                            dpm.setApplicationHidden(adminComponent, app, true)
-                            frozen++
+                            val hidden =
+                                try {
+                                    dpm.setApplicationHidden(adminComponent, app, true)
+                                } catch (e: Exception) {
+                                    CapsuleLog.w("Auto-freeze pass: freezing $app failed", e)
+                                    false
+                                }
+                            if (hidden) {
+                                frozen++
+                            } else {
+                                CapsuleLog.w("Auto-freeze pass: the system refused to freeze $app")
+                            }
                         } else {
                             CapsuleLog.i("Skipping foreground app $app")
                         }
                     }
                     CapsuleLog.i("Auto-freeze pass froze $frozen of ${targets.size} apps")
+                } else {
+                    CapsuleLog.i("Auto-freeze pass: nothing to freeze")
                 }
 
                 appsToFreeze.clear()

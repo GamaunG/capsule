@@ -21,7 +21,6 @@ import capsule.profile.util.CapsuleLog
 import capsule.profile.util.Fuzzy
 import capsule.profile.util.LocalStorageManager
 import capsule.profile.util.SettingsManager
-import capsule.profile.util.Utility
 import capsule.profile.util.WorkServiceHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -182,11 +181,6 @@ class AppListState(
                     if (isRemote) {
                         withContext(Dispatchers.IO) {
                             loadCrossProfileLists()
-                            // Drop auto-freeze entries for apps that no longer exist.
-                            Utility.deleteMissingApps(
-                                LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-                                list,
-                            )
                         }
                     }
                     withContext(Dispatchers.IO) {
@@ -471,6 +465,20 @@ class AppListState(
         CapsuleLog.i("${if (isInstall) "Clone" else "Uninstall"} of ${app.packageName} finished with result $result")
         when (result) {
             Activity.RESULT_OK -> {
+                if (!isInstall) {
+                    // The app is gone from the profile (uninstalled, or a
+                    // system app now hidden): it cannot stay on the Auto
+                    // Freeze list. A refresh-time sweep is not a substitute:
+                    // frozen system apps also vanish from the plain list, and
+                    // such a sweep would silently drop them from the list
+                    // just for being frozen.
+                    LocalStorageManager.removeFromStringList(
+                        LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
+                        app.packageName,
+                    )
+                    autoFreezePackages.remove(app.packageName)
+                    SettingsManager.syncAutoFreezeList()
+                }
                 onMessage(
                     if (isInstall) {
                         R.string.clone_success

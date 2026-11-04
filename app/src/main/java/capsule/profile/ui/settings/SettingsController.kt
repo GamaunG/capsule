@@ -173,7 +173,10 @@ class SettingsController(
     /**
      * Walks the chain: requests the first still-missing permission, or
      * finishes the chain when everything is granted. A permission that is
-     * still missing right after its settings screen was shown means the user
+     * still missing right after its settings screen was shown is re-read a
+     * few times first — the app-ops state can lag behind the toggle on some
+     * ROMs, and treating that lag as a decline forced the user through the
+     * same screen twice. Only a grant that never appears means the user
      * declined it: the chain stops there.
      */
     fun advancePermissionChain() {
@@ -181,7 +184,17 @@ class SettingsController(
         if (chain.isEmpty()) return
         refreshScope.launch {
             for (gate in chain) {
-                val satisfied = isGateSatisfied(gate)
+                var satisfied = isGateSatisfied(gate)
+                if (satisfied == false && gate == pendingGate) {
+                    var attempts = GATE_RECHECK_ATTEMPTS
+                    while (attempts-- > 0 && satisfied == false) {
+                        delay(GATE_RECHECK_INTERVAL_MS)
+                        satisfied = isGateSatisfied(gate)
+                    }
+                    if (satisfied == true) {
+                        CapsuleLog.i("Permission ${gate.name} reads granted after a re-read")
+                    }
+                }
                 if (satisfied == null) {
                     withContext(Dispatchers.Main) {
                         CapsuleLog.w("The work bridge is down; stopping the permission chain")
@@ -198,8 +211,9 @@ class SettingsController(
                 if (!satisfied) {
                     withContext(Dispatchers.Main) {
                         if (gate == pendingGate) {
-                            // Back from this very permission's screen without
-                            // it being granted: the user declined; stop asking.
+                            // Back from this very permission's screen and the
+                            // grant never appeared: the user declined; stop
+                            // asking.
                             CapsuleLog.i("Permission ${gate.name} was declined; stopping the chain")
                             pendingGate = null
                             permissionChain = emptyList()
@@ -237,24 +251,6 @@ class SettingsController(
         pendingGate = null
         permissionChain = emptyList()
         chainTarget = null
-    }
-
-    /**
-     * Asks the work profile instance for the notification permission, so the
-     * Auto Freeze service's status notification (the thing that keeps its
-     * watcher alive) can actually be seen. No other feature needs it.
-     */
-    fun requestWorkNotificationPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val intent = Intent(DummyActivity.REQUEST_NOTIFICATION_PERMISSION)
-        try {
-            Utility.transferIntentToProfile(activity, intent)
-            activity.launchWorkNotificationPermission(intent)
-        } catch (e: IllegalStateException) {
-            // The work profile is unreachable; the service still works, only
-            // its notification stays hidden.
-            CapsuleLog.w("Could not reach the work profile for the notification permission", e)
-        }
     }
 
     /** Launches the settings screen backing [gate], on the right profile. */
@@ -385,7 +381,9 @@ class SettingsController(
                     rejected == 0 -> activity.getString(R.string.cert_install_summary_ok, installed)
                     else -> activity.getString(R.string.cert_install_summary_partial, installed, rejected)
                 }
-            snackbarHostState.showSnackbar(message)
+            // The snackbar runs on its own: awaiting it would hold the list
+            // reload behind its whole on-screen lifetime.
+            refreshScope.launch { snackbarHostState.showSnackbar(message) }
             if (installed > 0) reloadCerts()
         }
     }
@@ -413,12 +411,18 @@ class SettingsController(
                     }
                 }
             showCertOutcome(outcome)
-            if (outcome == CertOutcome.OK) reloadCerts()
+            if (outcome == CertOutcome.OK) {
+                // Drop the row right away: the profile already confirmed the
+                // removal, and waiting for the background list reload kept
+                // the removed certificate on screen for seconds.
+                certs = certs?.filter { !it.encoded.contentEquals(cert.encoded) }
+                reloadCerts()
+            }
         }
     }
 
     /** Ends a certificate removal: clears the busy flag and reports. */
-    private suspend fun showCertOutcome(outcome: CertOutcome) {
+    private fun showCertOutcome(outcome: CertOutcome) {
         certBusy = false
         val message =
             when (outcome) {
@@ -434,7 +438,9 @@ class SettingsController(
                     activity.getString(R.string.cert_remove_failed)
                 }
             }
-        snackbarHostState.showSnackbar(message)
+        // Fire-and-forget: the caller updates the certificate list right
+        // after this and must not wait out the snackbar's lifetime.
+        refreshScope.launch { snackbarHostState.showSnackbar(message) }
     }
 
     /** Parses encoded certificate bytes into a displayable row. */
@@ -500,5 +506,9 @@ class SettingsController(
         /** Attempts and spacing for the initial certificate list load. */
         const val CERT_LOAD_ATTEMPTS = 4
         const val CERT_LOAD_RETRY_MS = 1_500L
+
+        /** Re-reads of a permission whose screen just closed, and their spacing. */
+        const val GATE_RECHECK_ATTEMPTS = 6
+        const val GATE_RECHECK_INTERVAL_MS = 500L
     }
 }

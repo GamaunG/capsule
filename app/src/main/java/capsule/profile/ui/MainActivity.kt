@@ -57,13 +57,6 @@ class MainActivity : ComponentActivity() {
             settings.advancePermissionChain()
         }
 
-    // The Auto Freeze notification permission is asked once, when the service
-    // is enabled; its result does not change any flow in this screen.
-    private val workNotificationPermissionLauncher: ActivityResultLauncher<Intent> =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            // Nothing to do: enabling the service does not depend on it.
-        }
-
     private val selectCert: ActivityResultLauncher<Array<String>> =
         registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             if (uris.isNotEmpty()) settings.installCertificates(uris)
@@ -150,11 +143,6 @@ class MainActivity : ComponentActivity() {
     /** Opens a work-profile special-access settings screen. */
     fun launchWorkPermissionSettings(intent: Intent) {
         workPermissionLauncher.launch(intent)
-    }
-
-    /** Asks the work profile for its notification permission. */
-    fun launchWorkNotificationPermission(intent: Intent) {
-        workNotificationPermissionLauncher.launch(intent)
     }
 
     /** Opens the multi-file certificate picker. */

@@ -47,8 +47,6 @@
     <string name="setup_wizard_please_wait">لطفا صبر کنید…</string>
     <string name="setup_wizard_please_wait_text">در حال تلاش برای راه اندازی Work Profile و Capsule روی دستگاه شما هستیم.</string>
     <string name="setup_wizard_failed">راه‌اندازی به مشکل خورد</string>
-    <string name="service_title">سرویس Capsule</string>
-    <string name="service_desc">Capsule در حال اجرا است …</string>
     <string name="service_auto_freeze_title">منتظر قفل خودکار هستیم</string>
     <string name="service_auto_freeze_now">قفل کن</string>
     <string name="app_installing">در حال نصب...</string>
@@ -79,7 +77,6 @@
     <string name="settings_source_code">سورس کد</string>
     <string name="settings_bug_report">گزارش مشکلات / ردیاب مشکلات</string>
     <string name="provision_finished">راه‌اندازی شلتر انجام شد. اکنون شلتر را ریستارت میکنیم. اگر برنامه به طور خودکار باز نشد، دوباره آن را باز کنید.</string>
-    <string name="work_profile_not_found">پروفایل کاری یافت نشد. لطفا برنامه را ریستارت کنید تا پروفایل دوباره آماده شود.</string>
     <string name="uninstall_success">برنامه %s با موفقیت حذف شده است</string>
     <string name="freeze_success">برنامه %s با موفقیت قفل شده است</string>
     <string name="clone_success">برنامه %s با موفقیت کپی شده است</string>

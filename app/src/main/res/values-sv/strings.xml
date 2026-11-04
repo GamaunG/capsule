@@ -26,8 +26,6 @@
     <string name="fragment_profile_work">Capsule</string>
     <string name="uninstall_fail_system_app">Det går inte att avinstallera systemappar i en profil som Capsule inte har kontroll över.</string>
     <string name="device_admin_desc">App-isoleringstjänst</string>
-    <string name="service_title">Capsule-tjänst</string>
-    <string name="service_desc">Capsule är nu igång…</string>
     <string name="setup_wizard_welcome_text">Capsule är en applikation som kan hjälpa dig att köra andra applikationer i en isolerad profil. Den gör det genom att använda funktionen <b>Arbetsprofil</b> i Android.
 \n
 \nKlicka på \"Nästa\" så ger vi dig mer information om Capsule och guidar dig genom installationsprocessen.
@@ -62,7 +60,6 @@
     <string name="provision_finished">Installationen av Capsule är klar. Nu startar Capsule om. Om Capsule inte startade om automatiskt kan du göra det från din launcher.</string>
     <string name="settings_cross_profile_file_chooser_desc">När det är aktiverat kommer du att kunna bläddra / visa / välja / kopiera filer i Capsule från huvudprofilen och vice versa, ENDAST via funktionen \"Documents UI\" (som heter Files eller Documents på din launcher) eller via appar med \"Documents UI\"-stöd (de får bara tillfällig åtkomst till filer du väljer i Documents UI), medan filsystemets isolering fortsätter att gälla.</string>
     <string name="setup_wizard_permissions">Några ord om behörigheter</string>
-    <string name="work_profile_not_found">Det gick inte att hitta arbetsprofilen. Starta om appen för att omregistrera profilen.</string>
     <string name="clone_fail_system_app">Det går inte att klona systemappar till en profil som Capsule inte har kontroll över.</string>
     <string name="setup_wizard_ready">Redo?</string>
     <string name="setup_wizard_please_wait">Vänta…</string>

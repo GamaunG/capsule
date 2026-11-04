@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">خدمة عزل التطبيقات</string>
-    <string name="service_title">خدمة العزل</string>
-    <string name="service_desc">العازل يعمل الآن …</string>
     <string name="fragment_profile_main">الرئيسية</string>
     <string name="fragment_profile_work">العازل</string>
     <string name="list_item_disabled">[مجمد] %s</string>
@@ -24,7 +22,6 @@
     <string name="settings_source_code">كود المصدر</string>
     <string name="settings_bug_report">الإبلاغ عن الأخطاء / تتبع المشاكل</string>
     <string name="provision_finished">اكتمل إعداد العازل. جاري إعادة تشغيل العازل الآن. إذا لم يبدأ العازل تلقائيًا، يمكنك بدءه مرة أخرى من مشغّلك.</string>
-    <string name="work_profile_not_found">لم يتم العثور على ملف العمل. يرجى إعادة تشغيل التطبيق لإعادة توفير الملف الشخصي.</string>
     <string name="clone_success">تم نسخ التطبيق \"%s\" بنجاح</string>
     <string name="uninstall_success">تم إلغاء تثبيت التطبيق \"%s\" بنجاح</string>
     <string name="freeze_success">تم تجميد التطبيق \"%s\" بنجاح</string>

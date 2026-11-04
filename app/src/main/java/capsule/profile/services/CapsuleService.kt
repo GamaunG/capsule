@@ -100,8 +100,7 @@ class CapsuleService : Service() {
                 // Traffic after the lease expired means the client came back:
                 // the process is cached by now and the cached-app freezer will
                 // kill it on the next synchronous call unless the keep-alive
-                // is re-armed first (observed in the V14 system log: a
-                // DeadObjectException ~10 s after "lease expired").
+                // is re-armed first.
                 if (isProfileOwner) {
                     rearmBridgeKeepAlive()
                 }
@@ -389,8 +388,8 @@ class CapsuleService : Service() {
                 val schema = ArrayList<Bundle>()
                 // A frozen (hidden) app reads as uninstalled for the manifest
                 // query, which would throw "No such package" across the
-                // binder (seen in the V14 system log). The editor then simply
-                // sees no schema; the configured values are still returned.
+                // binder. The editor then simply sees no schema; the
+                // configured values are still returned.
                 val entries =
                     try {
                         getSystemService(RestrictionsManager::class.java)

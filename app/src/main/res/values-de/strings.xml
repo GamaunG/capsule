@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">App-Isolations-Dienst</string>
-    <string name="service_title">Capsule-Dienst</string>
-    <string name="service_desc">Capsule läuft jetzt …</string>
     <string name="service_auto_freeze_title">Auto-Frost ausstehend</string>
     <string name="service_auto_freeze_desc">Bei der nächsten Bildschirmsperre wird Capsule die Apps automatisch einfrosten, die durch \"Auftauen &amp; Starten\" gestartet wurden.</string>
     <string name="service_auto_freeze_now">Froste jetzt ein</string>
@@ -43,7 +41,6 @@
     <string name="settings_source_code">Quelltext</string>
     <string name="settings_bug_report">Fehler melden / Probleme lösen</string>
     <string name="provision_finished">Die Einrichtung von Capsule ist abgeschlossen. Das Programm wird jetzt neu gestartet. Sollte Capsule nicht automatisch starten, rufen Sie das Programm erneut manuell über das Capsule-Symbol auf.</string>
-    <string name="work_profile_not_found">Das Arbeits-Profil wurde nicht gefunden. Bitte starten Sie die App nochmals, um das Profil erneut bereitzustellen.</string>
     <string name="clone_success">Die Anwendung \"%s\" wurde erfolgreich geklont</string>
     <string name="uninstall_success">Die Anwendung \"%s\" wurde erfolgreich deinstalliert</string>
     <string name="freeze_success">Die Anwendung \"%s\" wurde erfolgreich eingefrostet</string>

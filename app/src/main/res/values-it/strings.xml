@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="device_admin_desc">Servizio di isolazione app</string>
-    <string name="service_title">Servizio Capsule</string>
-    <string name="service_desc">Capsule in esecuzione …</string>
     <string name="service_auto_freeze_title">Congelamento automatico in attesa</string>
     <string name="settings_bug_report">Segnalazione di errori / Tracciatore dei problemi</string>
     <string name="service_auto_freeze_now">Congela adesso</string>
@@ -35,7 +33,6 @@
     <string name="settings_dont_freeze_foreground">Tralascia le app in primo piano</string>
     <string name="settings_version">Versione</string>
     <string name="settings_source_code">Codice sorgente</string>
-    <string name="work_profile_not_found">Profilo di lavoro non trovato. Si prega di riavviare l\'app per ricreare il profilo.</string>
     <string name="clone_success">Applicazione \"%s\" clonata correttamente</string>
     <string name="uninstall_success">App \"%s\" disinstallata correttamente</string>
     <string name="freeze_success">App \"%s\" congelata correttamente</string>

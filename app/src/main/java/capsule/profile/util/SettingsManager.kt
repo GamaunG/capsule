@@ -20,7 +20,6 @@ object SettingsManager {
     const val PICKER_MAIN_TO_WORK = 2
     const val PICKER_BOTH = 3
     private lateinit var appContext: Context
-    private val storage: LocalStorageManager get() = LocalStorageManager
 
     fun initialize(context: Context) {
         // Idempotent: a direct-boot process may initialize again once the
@@ -83,7 +82,7 @@ object SettingsManager {
             putBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND, getSkipForegroundEnabled())
             putStringArray(
                 LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-                storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE).toTypedArray(),
+                LocalStorageManager.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE).toTypedArray(),
             )
         }
 
@@ -114,8 +113,8 @@ object SettingsManager {
                 }
             when (value) {
                 is Boolean -> {
-                    if (storage.getBoolean(name) != value) {
-                        storage.setBoolean(name, value)
+                    if (LocalStorageManager.getBoolean(name) != value) {
+                        LocalStorageManager.setBoolean(name, value)
                         changed++
                     }
                 }
@@ -128,10 +127,10 @@ object SettingsManager {
                         if (name == LocalStorageManager.PREF_AUTO_FREEZE_DELAY) {
                             getAutoFreezeDelay()
                         } else {
-                            storage.getInt(name)
+                            LocalStorageManager.getInt(name)
                         }
                     if (current != value) {
-                        storage.setInt(name, value)
+                        LocalStorageManager.setInt(name, value)
                         changed++
                     }
                 }
@@ -139,8 +138,8 @@ object SettingsManager {
                 is List<*> -> {
                     @Suppress("UNCHECKED_CAST")
                     val list = value as List<String>
-                    if (storage.getStringList(name) != list) {
-                        storage.setStringList(name, list)
+                    if (LocalStorageManager.getStringList(name) != list) {
+                        LocalStorageManager.setStringList(name, list)
                         changed++
                     }
                 }
@@ -159,7 +158,7 @@ object SettingsManager {
     }
 
     fun applyCrossProfileFileChooser() {
-        val enabled = storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER)
+        val enabled = LocalStorageManager.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER)
         appContext.packageManager.setComponentEnabledSetting(
             ComponentName(appContext, CrossProfileDocumentsProvider::class.java),
             if (enabled) {
@@ -172,24 +171,24 @@ object SettingsManager {
     }
 
     fun setCrossProfileFileChooserEnabled(enabled: Boolean) {
-        storage.setBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER, enabled)
+        LocalStorageManager.setBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER, enabled)
         applyCrossProfileFileChooser()
         syncBoolToProfile(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER, enabled)
     }
 
     fun getCrossProfileFileChooserEnabled(): Boolean =
-        storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER)
+        LocalStorageManager.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER)
 
     fun setCrossProfilePickerMode(mode: Int) {
-        storage.setInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, mode)
+        LocalStorageManager.setInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, mode)
         syncIntToProfile(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE, mode)
     }
 
     fun getCrossProfilePickerMode(): Int {
-        val mode = storage.getInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE)
+        val mode = LocalStorageManager.getInt(LocalStorageManager.PREF_CROSS_PROFILE_PICKER_MODE)
         if (mode != Int.MIN_VALUE) return mode
         // Migrate the former boolean toggle: enabled meant both directions.
-        return if (storage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_PICKER)) {
+        return if (LocalStorageManager.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_PICKER)) {
             PICKER_BOTH
         } else {
             PICKER_DISABLED
@@ -197,52 +196,61 @@ object SettingsManager {
     }
 
     fun setBlockContactsSearchingEnabled(enabled: Boolean) {
-        storage.setBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING, enabled)
+        LocalStorageManager.setBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING, enabled)
         syncBoolToProfile(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING, enabled)
     }
 
     fun getBlockContactsSearchingEnabled(): Boolean =
-        storage.getBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING)
+        LocalStorageManager.getBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING)
 
     fun setAutoFreezeServiceEnabled(enabled: Boolean) {
-        storage.setBoolean(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE, enabled)
+        LocalStorageManager.setBoolean(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE, enabled)
         // The work profile keeps the freeze service armed based on this flag.
-        syncBoolToProfile(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE, enabled)
+        // The work side's notification permission rides the same delivery:
+        // two cross-profile launches fired back to back race the singleTask
+        // bridge activity, and the system can drop the first intent.
+        syncToProfile(
+            Intent(DummyActivity.SYNCHRONIZE_PREFERENCE).apply {
+                putExtra("name", LocalStorageManager.PREF_AUTO_FREEZE_SERVICE)
+                putExtra("boolean", enabled)
+                if (enabled) putExtra(DummyActivity.EXTRA_REQUEST_NOTIFICATIONS, true)
+            },
+        )
     }
 
     fun getAutoFreezeServiceEnabled(): Boolean =
-        storage.getBoolean(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE)
+        LocalStorageManager.getBoolean(LocalStorageManager.PREF_AUTO_FREEZE_SERVICE)
 
     fun setAutoFreezeDelay(seconds: Int) {
-        storage.setInt(LocalStorageManager.PREF_AUTO_FREEZE_DELAY, seconds)
+        LocalStorageManager.setInt(LocalStorageManager.PREF_AUTO_FREEZE_DELAY, seconds)
         syncIntToProfile(LocalStorageManager.PREF_AUTO_FREEZE_DELAY, seconds)
     }
 
     fun getAutoFreezeDelay(): Int {
-        val ret = storage.getInt(LocalStorageManager.PREF_AUTO_FREEZE_DELAY)
+        val ret = LocalStorageManager.getInt(LocalStorageManager.PREF_AUTO_FREEZE_DELAY)
         return if (ret == Int.MIN_VALUE) 0 else ret
     }
 
     fun setSkipForegroundEnabled(enabled: Boolean) {
-        storage.setBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND, enabled)
+        LocalStorageManager.setBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND, enabled)
         syncBoolToProfile(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND, enabled)
     }
 
     fun getSkipForegroundEnabled(): Boolean =
-        storage.getBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND)
+        LocalStorageManager.getBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND)
 
     /** The auto-freeze list is edited in the main profile but consumed inside the work profile. */
     fun syncAutoFreezeList() {
         syncStringListToProfile(
             LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-            storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE),
+            LocalStorageManager.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE),
         )
     }
 
     fun getAutoFreezeList(): List<String> =
-        storage.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
+        LocalStorageManager.getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
 
-    fun getPaymentStubEnabled(): Boolean = storage.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB)
+    fun getPaymentStubEnabled(): Boolean = LocalStorageManager.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB)
 
     /**
      * Id of the resume method the Resume button runs. Stored on the main
@@ -250,18 +258,18 @@ object SettingsManager {
      * so no cross-profile mirror is needed.
      */
     fun setResumeMethodId(id: String) {
-        storage.setString(LocalStorageManager.PREF_RESUME_METHOD, id)
+        LocalStorageManager.setString(LocalStorageManager.PREF_RESUME_METHOD, id)
     }
 
-    fun getResumeMethodId(): String? = storage.getString(LocalStorageManager.PREF_RESUME_METHOD)
+    fun getResumeMethodId(): String? = LocalStorageManager.getString(LocalStorageManager.PREF_RESUME_METHOD)
 
     fun setPaymentStubEnabled(enabled: Boolean) {
-        storage.setBoolean(LocalStorageManager.PREF_PAYMENT_STUB, enabled)
+        LocalStorageManager.setBoolean(LocalStorageManager.PREF_PAYMENT_STUB, enabled)
         applyPaymentStub()
     }
 
     fun applyPaymentStub() {
-        val enabled = storage.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB)
+        val enabled = LocalStorageManager.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB)
         appContext.packageManager.setComponentEnabledSetting(
             ComponentName(appContext, PaymentStubService::class.java),
             if (enabled) {

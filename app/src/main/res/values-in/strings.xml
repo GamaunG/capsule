@@ -27,8 +27,6 @@
     <string name="setup_wizard_please_wait">Silakan tunggu. . .</string>
     <string name="setup_wizard_please_wait_text">Kami mencoba menginisialisasi Work Profile dan menyiapkan Capsule di perangkat Anda.</string>
     <string name="setup_wizard_failed">Penyiapan gagal</string>
-    <string name="service_title">Layanan Capsule</string>
-    <string name="service_desc">Capsule sekarang berjalan …</string>
     <string name="service_auto_freeze_title">Pembekuan otomatis tertunda</string>
     <string name="service_auto_freeze_desc">Capsule akan membekukan aplikasi secara otomatis yang diluncurkan dari \"Cairan &amp; Luncurkan\" pada acara penguncian layar berikutnya.</string>
     <string name="service_auto_freeze_now">Bekukan Sekarang</string>
@@ -56,7 +54,6 @@
     <string name="settings_source_code">Kode Sumber</string>
     <string name="settings_bug_report">Laporan Masalah / Pelacak Masalah</string>
     <string name="provision_finished">Pengaturan tempat berlindung selesai. Sekarang memulai kembali Capsule. Jika Capsule tidak memulai secara otomatis, Anda dapat meluncurkannya lagi dari peluncur.</string>
-    <string name="work_profile_not_found">Profil kerja tidak ditemukan. Mulai ulang aplikasi untuk menyediakan ulang profil.</string>
     <string name="clone_success">Aplikasi \"%s\" berhasil digandakan</string>
     <string name="uninstall_success">Aplikasi \"%s\" berhasil dihapus instalasinya</string>
     <string name="freeze_success">Aplikasi \"%s\" berhasil dibekukan</string>

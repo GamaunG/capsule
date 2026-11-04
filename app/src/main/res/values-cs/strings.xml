@@ -50,8 +50,6 @@
     <string name="setup_wizard_please_wait_text">Snažíme se zapnout Pracovní profil a nastavit Capsule.</string>
     <string name="setup_wizard_failed">Nastavení selhalo</string>
     <string name="install_app_to_profile">Nainstalovat APK do Capsuleu</string>
-    <string name="service_desc">Capsule právě běží …</string>
-    <string name="service_title">Služba Capsuleu</string>
     <string name="service_auto_freeze_title">Automatické zmrazení je pozdrženo</string>
     <string name="service_auto_freeze_desc">Capsule automaticky zamrazí aplikace spuštěné z \"Rozmrazit &amp; Spustit\" při dalším zamčení obrazovky.</string>
     <string name="service_auto_freeze_now">Ihned zmrazit</string>
@@ -90,7 +88,6 @@
     <string name="settings_version">Verze</string>
     <string name="settings_source_code">Zdrojový kód</string>
     <string name="continue_anyway">Přesto pokračovat</string>
-    <string name="work_profile_not_found">Pracovní profil nenalezen. Restartujte prosím aplikaci pro opětovné nastavení profilu.</string>
     <string name="unfreeze_success">Aplikace \"%s\" úspěšně rozmrazena</string>
     <string name="freeze_success">Aplikace \"%s\" úspěšně zamrazena</string>
     <string name="clone_fail_system_app">Není možné naklonovat systémovou aplikaci, protože Capsule nad ní nemá kontrolu.</string>

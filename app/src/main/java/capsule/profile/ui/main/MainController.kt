@@ -699,7 +699,7 @@ class MainController(
         if (!servicesReady.value) {
             // A profile that existed when we paused may be gone now: leaving
             // a settled banner up would hide the setup offer until a full
-            // app restart (seen after deleting a foreign profile in V14).
+            // app restart.
             if (!LocalStorageManager.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP) &&
                 Utility.getWorkProfileUserHandle(activity) == null &&
                 (workUnreachable.value || workPaused.value)
@@ -815,19 +815,18 @@ class MainController(
         if (resumeWatchJob?.isActive == true) return
         val dispatched = method.run(activity)
         if (!dispatched) {
-            CapsuleLog.w("RESUME TEST method=${method.id} result=API_FAILED")
+            CapsuleLog.w("Resume method=${method.id} result=API_FAILED")
             showListMessage(R.string.resume_method_failed, null)
             return
         }
-        CapsuleLog.i("RESUME TEST method=${method.id} dispatched; waiting for the profile")
+        CapsuleLog.i("Resume method=${method.id} dispatched; waiting for the profile")
         startResumeWatcher(method)
     }
 
     /**
      * Waits for the user to answer the system resume dialog, then continues
      * the bind chain once the profile has finished booting. Every outcome is
-     * logged with the method id so the next system log identifies the path
-     * that works on this device.
+     * logged with the method id, so a log identifies the path that ran.
      */
     private fun startResumeWatcher(method: ResumeMethod) {
         if (resumeWatchJob?.isActive == true) return
@@ -853,10 +852,10 @@ class MainController(
                     withContext(Dispatchers.Main) {
                         resumeWatchJob = null
                     }
-                    CapsuleLog.w("RESUME TEST method=${method.id} result=NOT_RESUMED after $waited ms")
+                    CapsuleLog.w("Resume method=${method.id} result=NOT_RESUMED after $waited ms")
                     return@launch
                 }
-                CapsuleLog.i("RESUME TEST method=${method.id} quiet mode lifted after $waited ms")
+                CapsuleLog.i("Resume method=${method.id} quiet mode lifted after $waited ms")
                 // Leaving quiet mode boots the profile user asynchronously:
                 // cross-profile resolution keeps failing for a moment, and a
                 // probe fired into that window dead-ends on the "not
@@ -872,7 +871,7 @@ class MainController(
                 withContext(Dispatchers.Main) {
                     resumeWatchJob = null
                     CapsuleLog.i(
-                        "RESUME TEST method=${method.id} result=RESUMED; continuing the bind chain",
+                        "Resume method=${method.id} result=RESUMED; continuing the bind chain",
                     )
                     lastWorkProbeAt = 0
                     workPaused.value = false

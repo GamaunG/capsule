@@ -18,8 +18,6 @@
     <string name="setup_wizard_ready">Sẵn sàng chưa?</string>
     <string name="setup_wizard_please_wait">Vui lòng đợi…</string>
     <string name="setup_wizard_failed">Thiết lập thất bại</string>
-    <string name="service_title">Dịch vụ Capsule</string>
-    <string name="service_desc">Capsule hiện đang chạy…</string>
     <string name="service_auto_freeze_title">Đang chờ tự động đóng băng</string>
     <string name="service_auto_freeze_now">Đóng băng ngay</string>
     <string name="app_installing">Đang cài đặt…</string>
@@ -68,7 +66,6 @@
     <string name="settings_dont_freeze_foreground_desc">KHÔNG đóng băng các ứng dụng ở trước (có hoạt động có thể nhìn thấy được) khi bạn khoá màn hình. Việc này có thể hữu ích đối với các ứng dụng như trình phát nhạc, nhưng sau đó bạn sẽ cần phải đóng băng chúng theo cách thủ công qua \"Lối tắt Đóng băng hàng loạt\".</string>
     <string name="settings_bug_report">Báo cáo lỗi / Trình theo dõi vấn đề</string>
     <string name="provision_finished">Thiết lập Capsule hoàn tất. Bây giờ đang khởi động lại Capsule. Nếu Capsule không tự động khởi động, bạn có thể chạy nó lại từ launcher của bạn.</string>
-    <string name="work_profile_not_found">Không tìm thấy hồ sơ công việc. Vui lòng khởi động lại ứng dụng để quản lý lại hồ sơ.</string>
     <string name="freeze_success">Đã đóng băng ứng dụng \"%s\" thành công</string>
     <string name="clone_fail_system_app">Không thể nhân bản ứng dụng hệ thống vào một hồ sơ mà Capsule không thể kiểm soát.</string>
     <string name="uninstall_fail_system_app">Không thể gỡ cài đặt ứng dụng hệ thống trong một hồ sơ mà Capsule không thể kiểm soát.</string>
