@@ -4,15 +4,22 @@ plugins {
 }
 
 // Short git commit hash shown in the About section; resolved at configuration
-// time so the configuration cache stays valid.
+// time so the configuration cache stays valid. Can be overridden via
+// -Pcapsule.gitCommitHash when building from a source archive without git history.
+// An empty -P value is treated as absent (Provider.map to null), so a stray
+// `-Pcapsule.gitCommitHash=` can never blank the field.
 val gitCommitHash: String =
     providers
-        .exec {
-            commandLine("git", "rev-parse", "--short", "HEAD")
-            isIgnoreExitValue = true
-        }.standardOutput.asText
-        .map { it.trim().ifEmpty { "unknown" } }
-        .orElse("unknown")
+        .gradleProperty("capsule.gitCommitHash")
+        .map { it.trim().ifEmpty { null } }
+        .orElse(
+            providers
+                .exec {
+                    commandLine("git", "rev-parse", "--short=7", "HEAD")
+                    isIgnoreExitValue = true
+                }.standardOutput.asText
+                .map { it.trim().ifEmpty { "unknown" } },
+        ).orElse("unknown")
         .get()
 
 // Release signing properties, resolved once at configuration time so task
@@ -22,9 +29,29 @@ val releaseKeyAlias = providers.gradleProperty("capsule.release.keyAlias").orNul
 val releaseKeyPassword = providers.gradleProperty("capsule.release.keyPassword").orNull
 val releaseStoreFile = providers.gradleProperty("capsule.release.storeFile").orNull
 val releaseStorePassword = providers.gradleProperty("capsule.release.storePassword").orNull
-val releaseSigningConfigured =
-    listOf(releaseKeyAlias, releaseKeyPassword, releaseStoreFile, releaseStorePassword)
-        .none { it.isNullOrBlank() }
+
+val releaseProps = listOf(releaseKeyAlias, releaseKeyPassword, releaseStoreFile, releaseStorePassword)
+val hasAnyReleaseProps = releaseProps.any { !it.isNullOrBlank() }
+val hasAllReleaseProps = releaseProps.all { !it.isNullOrBlank() }
+val resolvedKeystoreFile = releaseStoreFile?.let { rootProject.file(it) }
+
+// Fail fast if signing was attempted but configured incorrectly (protects against typos).
+// If no signing properties are provided at all, the build cleanly falls back to unsigned
+// output, enabling third-party reproducible build verifications.
+if (hasAnyReleaseProps) {
+    if (!hasAllReleaseProps) {
+        throw GradleException(
+            "Incomplete release signing configuration. All capsule.release.* properties must be provided.",
+        )
+    }
+    if (resolvedKeystoreFile?.exists() != true) {
+        throw GradleException(
+            "Release keystore file not found at: ${resolvedKeystoreFile?.absolutePath}",
+        )
+    }
+}
+
+val isReleaseSigningConfigured = hasAllReleaseProps && resolvedKeystoreFile?.exists() == true
 
 android {
     namespace = "capsule.profile"
@@ -56,13 +83,11 @@ android {
         //   capsule.release.keyAlias / keyPassword / storePassword / storeFile
         // storeFile is resolved against the repository root, so a value like
         // "../keystores/capsule-release.jks" or an absolute path both work.
-        create("release") {
-            if (releaseKeyAlias != null && releaseKeyPassword != null &&
-                releaseStoreFile != null && releaseStorePassword != null
-            ) {
+        if (isReleaseSigningConfigured) {
+            create("release") {
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
-                storeFile = rootProject.file(releaseStoreFile)
+                storeFile = resolvedKeystoreFile
                 storePassword = releaseStorePassword
             }
         }
@@ -79,7 +104,17 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            // Signs the APK if the keystore is available locally; otherwise leaves it
+            // unsigned so reproducible builds can be verified with apksigcopier.
+            signingConfig = if (isReleaseSigningConfigured) signingConfigs.getByName("release") else null
+            // AGP >= 8.3 embeds git revision info into
+            // META-INF/version-control-info.textproto by default, which makes a
+            // build from a git checkout differ from the same sources built from a
+            // source archive. Keep both byte-identical; the release commit hash is
+            // already surfaced through BuildConfig.GIT_COMMIT_HASH above.
+            vcsInfo {
+                include = false
+            }
         }
     }
 
@@ -104,28 +139,12 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
-}
 
-// Refuse to produce a release artifact that would end up unsigned or signed
-// with a temporary key. The check runs at execution time, but reads only a
-// task-local copy of the configuration-time Boolean, which keeps the
-// configuration cache happy.
-tasks
-    .matching {
-        it.name == "validateSigningRelease" ||
-            it.name == "packageRelease" ||
-            it.name == "bundleRelease"
-    }.configureEach {
-        val signingConfigured = releaseSigningConfigured
-        doFirst {
-            if (!signingConfigured) {
-                throw GradleException(
-                    "Release signing is not configured. Set the capsule.release.* " +
-                        "gradle properties to a keystore outside the project tree.",
-                )
-            }
-        }
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
+}
 
 // AGP 9 built-in Kotlin: compilerOptions lives in a top-level kotlin {} block.
 kotlin {

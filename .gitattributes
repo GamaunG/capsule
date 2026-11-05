@@ -1,0 +1,13 @@
+# Normalize line endings so checkouts on any OS produce identical build
+# inputs (a Windows checkout with autocrlf would otherwise change every
+# text file and, with it, the built APK).
+* text=auto eol=lf
+
+# Windows batch files must keep CRLF to stay executable there.
+*.bat text eol=crlf
+
+# Binaries: never normalize, never diff as text.
+*.png binary
+*.jar binary
+*.jks binary
+*.keystore binary

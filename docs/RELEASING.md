@@ -32,8 +32,12 @@ capsule.release.keyPassword=<key password>
 ./gradlew assembleRelease
 ```
 
-The build fails with a clear error when the signing properties are missing:
-an unsigned or debug-signed artifact can never ship by accident.
+- All four `capsule.release.*` properties set: the APK is signed.
+- Only some of them set: the build fails fast with a clear error, so a typo
+  can never produce an unsigned or wrongly signed artifact.
+- None set: the build produces an **unsigned**
+  `app/build/outputs/apk/release/app-release-unsigned.apk` — exactly what
+  third-party reproducible-build verification consumes.
 
 ## Verifying a built APK
 
@@ -45,3 +49,36 @@ $ANDROID_HOME/build-tools/37.0.0/apksigner verify --print-certs \
 The printed SHA-256 digest should match the fingerprint published for your
 distribution channel. Changing the signing key later means users must
 uninstall before updating.
+
+## Reproducible build verification
+
+Anyone can rebuild a published release byte-for-byte from its sources:
+
+```
+tar xzf capsule-src.tar.gz && cd capsule
+./gradlew :app:assembleRelease \
+  -Pcapsule.gitCommitHash=<short hash of the release commit>
+sha256sum app/build/outputs/apk/release/app-release-unsigned.apk
+```
+
+The digest must match the published one for the release. The required
+environment: JDK 21 (Temurin), the Gradle/AGP/dependency versions pinned by
+the wrapper and `gradle/libs.versions.toml`, and an Android SDK with
+`platforms;android-37.0` installed.
+
+To compare against a **signed** release APK instead of a published digest,
+copy the signature over an unsigned rebuild and diff:
+
+```
+pip install apksigcopier
+apksigcopier copy app-release.apk app-release-unsigned.apk re-signed.apk
+cmp re-signed.apk app-release.apk && echo "reproducible"
+```
+
+Two properties of the build make this work:
+
+- `vcsInfo { include = false }` — AGP >= 8.3 otherwise embeds the git
+  revision in `META-INF/version-control-info.textproto`, so a git checkout
+  and a source archive of the same commit would differ.
+- `dependenciesInfo { includeInApk = false }` — keeps Play's SDK dependency
+  blob out of the APK signing block.
